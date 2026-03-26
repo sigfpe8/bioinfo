@@ -42,7 +42,7 @@ pub fn validSeq(seq: []const u8) bool {
 }
 
 /// Generate a random DNA sequence of the given length.
-/// The caller is responsible for freeing the memory.
+/// The caller is responsible for freeing the memory of the returned slice.
 pub fn randomSeq(allocator: Allocator, len: usize) ![]u8 {
     const seq = try allocator.alloc(u8, len);
     var prng = std.Random.DefaultPrng.init(0); 
@@ -91,6 +91,7 @@ pub fn gcContent(seq: []const u8) f64 {
 }
 
 /// Return the complement of the given DNA sequence.
+/// The caller is responsible for freeing the memory of the returned slice.
 pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
     var comp = try allocator.alloc(u8, seq.len);
     for (seq, 0..) |c, i| {
@@ -101,6 +102,20 @@ pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
         comp[i] = pair;
     }
     return comp;
+}
+
+/// Transcribe the given DNA sequence to RNA (replace T with U).
+/// The caller is responsible for freeing the memory of the returned slice.
+pub fn transcribe(allocator: Allocator, seq: []const u8) ![]u8 {
+    var rna = try allocator.alloc(u8, seq.len);
+    for (seq, 0..) |c, i| {
+        if (c == 'T') {
+            rna[i] = 'U';
+        } else {
+            rna[i] = c;
+        }
+    }
+    return rna;
 }
 
 test "validSeq" {
@@ -136,4 +151,12 @@ test "complement" {
     const comp = try complement(allocator, seq);
     defer allocator.free(comp);
     try std.testing.expectEqualSlices(u8, "TGCA\nACGT", comp);
+}
+
+test "transcribe" {
+    const allocator = std.testing.allocator;
+    const seq = "ACGT";
+    const rna = try transcribe(allocator, seq);
+    defer allocator.free(rna);
+    try std.testing.expectEqualSlices(u8, "ACGU", rna);
 }
