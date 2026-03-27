@@ -95,11 +95,18 @@ pub fn gcContent(seq: []const u8) f64 {
 pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
     var comp = try allocator.alloc(u8, seq.len);
     for (seq, 0..) |c, i| {
-        var pair = c;
-        if (c >= 'A' and c <= 'Z') {
-            pair = dnaPairMap[c - 'A'];
-        }
-        comp[i] = pair;
+        comp[i] = if (c >= 'A' and c <= 'Z') dnaPairMap[c - 'A'] else c;
+    }
+    return comp;
+}
+
+/// Return the reverse complement of the given DNA sequence.
+/// The caller is responsible for freeing the memory of the returned slice.
+pub fn revComplement(allocator: Allocator, seq: []const u8) ![]u8 {
+    const len = seq.len - 1;
+    var comp = try allocator.alloc(u8, seq.len);
+    for (seq, 0..) |c, i| {
+        comp[len - i] = if (c >= 'A' and c <= 'Z') dnaPairMap[c - 'A'] else c;
     }
     return comp;
 }
@@ -109,11 +116,7 @@ pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
 pub fn transcribe(allocator: Allocator, seq: []const u8) ![]u8 {
     var rna = try allocator.alloc(u8, seq.len);
     for (seq, 0..) |c, i| {
-        if (c == 'T') {
-            rna[i] = 'U';
-        } else {
-            rna[i] = c;
-        }
+        rna[i] = if (c == 'T') 'U' else c;
     }
     return rna;
 }
@@ -152,6 +155,15 @@ test "complement" {
     defer allocator.free(comp);
     try std.testing.expectEqualSlices(u8, "TGCA\nACGT", comp);
 }
+
+test "revComplement" {
+    const allocator = std.testing.allocator;
+    const seq = "ACGT\nTGCA";
+    const comp = try revComplement(allocator, seq);
+    defer allocator.free(comp);
+    try std.testing.expectEqualSlices(u8, "TGCA\nACGT", comp);
+}
+
 
 test "transcribe" {
     const allocator = std.testing.allocator;
