@@ -1,5 +1,9 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+const assert = std.debug.assert;
+const Io = std.Io;
+const Reader = Io.Reader;
+const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
 
 const dnaPairMap: [26]u8 = .{
@@ -121,6 +125,119 @@ pub fn transcribe(allocator: Allocator, seq: []const u8) ![]u8 {
     return rna;
 }
 
+const Fasta = struct {
+    seqID: []const u8,
+    seq: []const u8,
+};
+
+pub fn randomFastaArray(allocator: Allocator, n: usize) ![]Fasta {
+    var prng = std.Random.DefaultPrng.init(0); 
+    const rand = prng.random();
+
+    var list: std.ArrayList(Fasta) = .empty;
+    var i: usize = 1;
+
+    while (i <= n) : (i += 1) {
+        const seqId = try std.fmt.allocPrint(allocator, "Sequence {d}", .{i});
+        const len = rand.uintLessThan(usize, 100) + 50;
+        const seq = try randomSeq(allocator, len);
+        try list.append(allocator, .{ .seqID = seqId, .seq = seq });
+    }
+
+    return list.toOwnedSlice(allocator);
+}
+
+pub fn freeFastaArray(allocator: Allocator, array: []Fasta) void {
+    for (array) |s| {
+        allocator.free(s.seqID);
+        allocator.free(s.seq);
+    }
+    allocator.free(array);
+}
+
+pub fn readFastaFile(io: Io, allocator: Allocator, fname: []const u8) ![]Fasta {
+    const file = try Io.Dir.cwd().openFile(io, fname, .{ .mode = .read_only });
+    defer file.close(io);
+    var buffer: [1024]u8 = undefined;
+    var file_reader: Io.File.Reader = .init(file, io, &buffer);
+
+    return try readFasta(allocator, &file_reader.interface);
+}
+
+pub fn readFastaBuffer(allocator: Allocator, buffer: []const u8) ![]Fasta {
+    var reader: Reader = .fixed(buffer);
+
+    return try readFasta(allocator, &reader);
+}
+
+pub fn readFasta(allocator: Allocator, r: *Reader) ![]Fasta {
+    var list: std.ArrayList(Fasta) = .empty;
+    var seqId: ?[]u8 = null;
+    var seq: std.ArrayList(u8) = .empty;
+
+    while (true) {
+        const line = r.takeDelimiterInclusive('\n') catch |err| {
+            switch (err) {
+                error.EndOfStream => break,
+                else => return err,
+            }
+        };
+        if (line.len == 1) {    // Ignore empty lines (just \n) 
+            continue;
+        }
+        if (line[0] == '>') {   // New sequence ID
+            if (seqId) |id| { // If there's a previous sequence, store it
+                // Store previous sequence
+                try list.append(allocator, .{
+                            .seqID = id,
+                            .seq = try seq.toOwnedSlice(allocator) });
+            }
+            // Mark new sequence ID
+            seqId = try allocator.dupe(u8, line[1..line.len - 1]);
+            seq = .empty;
+        } else {
+            // Concatenate lines in the same sequence
+            try seq.appendSlice(allocator, line[0..line.len - 1]); // Trim \n
+        }
+    }
+
+    // Include last sequence
+    if (seqId) |id| {
+        try list.append(allocator, .{
+                    .seqID = id,
+                    .seq = try seq.toOwnedSlice(allocator) });
+    }
+
+    return list.toOwnedSlice(allocator);
+}
+
+const maxFastaSeqLine = 80;
+
+pub fn writeFastaFile(io: Io, seqs: []const Fasta, fname: []const u8) !void {
+    const file = try Io.Dir.cwd().createFile(io, fname, .{});
+    defer file.close(io);
+    var buffer: [1024]u8 = undefined;
+    var file_writer: Io.File.Writer = .init(file, io, &buffer);
+
+    return try writeFasta(seqs, &file_writer.interface);
+}
+
+pub fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
+    // >SeqID
+    // seq
+    for (seqs) |s| {
+        try w.print(">{s}\n", .{s.seqID});
+        var p = s.seq;
+        // Print sequence in chunks of maxFastaSeqLine characters
+        while (p.len > 0) {
+            const l = @min(p.len, maxFastaSeqLine);
+            try w.print("{s}\n", .{p[0..l]});
+            p = p[l..]; // Next chunk
+        }
+    }
+    try w.flush();
+}
+
 test "validSeq" {
     try std.testing.expect(validSeq("ACGT"));
     try std.testing.expect(!validSeq("ACGTX"));
@@ -163,7 +280,6 @@ test "revComplement" {
     defer allocator.free(comp);
     try std.testing.expectEqualSlices(u8, "TGCA\nACGT", comp);
 }
-
 
 test "transcribe" {
     const allocator = std.testing.allocator;
