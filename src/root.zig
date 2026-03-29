@@ -125,6 +125,30 @@ pub fn transcribe(allocator: Allocator, seq: []const u8) ![]u8 {
     return rna;
 }
 
+/// Return the Hamming distance between two sequences, that is,
+/// the number of corresponding nucleotides that are different.
+/// If the sequences have different lengths, return -1.
+pub fn hammingDist(seq1: []const u8, seq2: []const u8) isize {
+    if (seq1.len != seq2.len) {
+        return -1;
+    }
+
+    var hamd: isize = 0;
+
+    for (0..seq1.len) |i| {
+        if (seq1[i] != seq2[i]) {
+            hamd += 1;
+        }
+    }
+
+    return hamd;
+}
+
+
+// Support for FASTA files
+
+// This struct represents a single sequence in a FASTA file.
+// A file can contain multiple sequences.
 const Fasta = struct {
     seqID: []const u8,
     seq: []const u8,
@@ -287,4 +311,11 @@ test "transcribe" {
     const rna = try transcribe(allocator, seq);
     defer allocator.free(rna);
     try std.testing.expectEqualSlices(u8, "ACGU", rna);
+}
+
+test "hammingDist" {
+    try std.testing.expectEqual(hammingDist("CAAACGTT","GAAACGT"), -1);
+    try std.testing.expectEqual(hammingDist("CAAACGTT","CAAACGTT"), 0);
+    try std.testing.expectEqual(hammingDist("CAAACGTT","CAAACGTC"), 1);
+    try std.testing.expectEqual(hammingDist("CAAACGTT","GAAACGTC"), 2);
 }

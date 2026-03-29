@@ -17,7 +17,11 @@ pub fn main(init: std.process.Init) !void {
     // try problemRNA(seq);
     //try problemREVC(seq);
     // try problemGC();
-    problemFIB(28, 5);
+    // problemFIB(28, 5);
+    problemHAMM(
+        "GAGCCTACTAACGGGAT",
+        "CATCGTAATGACGGCCT"
+    );
 }
 
 /// DNA - Counting DNA Nucleotides
@@ -42,6 +46,7 @@ pub fn problemREVC(seq: []const u8) !void {
 
 /// GC - Computing GC content
 pub fn problemGC() !void {
+    // const fname = "~/Downloads/rosalind_gc.txt";
     const fname = "/Users/cordeiro/Downloads/rosalind_gc.txt";
     const seqs = try bio.readFastaFile(io, gpa, fname);
 
@@ -55,8 +60,8 @@ pub fn problemGC() !void {
                 gc = x;
                 id = i;
             }
-            print("{d}: {s}\n", .{ i, s.seqID });
-            print("{s}\n\n", .{s.seq});
+            // print("{d}: {s}\n", .{ i, s.seqID });
+            // print("{s}\n\n", .{s.seq});
         }
         print("{s}\n", .{seqs[id].seqID});
         print("{d:.6}\n", .{gc});
@@ -79,4 +84,10 @@ pub fn problemFIB(n: usize, k: usize) void {
     }
 
     print("{d}\n", .{f});
+}
+
+pub fn problemHAMM(seq1: []const u8, seq2: []const u8) void {
+    const hamd = bio.hammingDist(seq1, seq2);
+
+    print("{d}\n", .{hamd});
 }
