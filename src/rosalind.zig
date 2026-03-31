@@ -4,6 +4,7 @@
 const std = @import("std");
 const bio = @import("root.zig");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const print = std.debug.print;
 
 var gpa: Allocator = undefined;
@@ -18,10 +19,14 @@ pub fn main(init: std.process.Init) !void {
     //try problemREVC(seq);
     // try problemGC();
     // problemFIB(28, 5);
-    problemHAMM(
-        "GAGCCTACTAACGGGAT",
-        "CATCGTAATGACGGCCT"
-    );
+    // problemHAMM(
+    //     "GAGCCTACTAACGGGAT",
+    //     "CATCGTAATGACGGCCT"
+    // );
+    // try problemPERM(7);
+    // problemIPRB(27,17,27);
+    problemSUBS("TCGAAAGACCCACAAACCCACATCAGGGAACCCACATCCCGACCCACACGGATCTTACCCACAACCCACAGCTTAACCCACATCAGCACCCACATTCTTACCCACATACCCACAGTAATGGGACCCACAACCTTCTACCCACAGACCCACAACCCACATAGGACCCACACCCGGGGATCGGTACCCACAACCCACATTACCCACATCGCAACCCACACGGACCCACACAGATTAAGAGTCTACCCACAACACCCACAGCCGCTACCCACAAACCCACAACCCACAAAACCCACATCACCCACAAACCCACAACCCTCCGCAAATAACCCACAGCACAACGACCCACAGAAGTATATTACCACCCACAACCCACAGCTGAACCCACAAAACCCACACTCAAACAACCCACATACCCACAGTATTGCGAACCCACAACCCACAGTAGTCACCCACAACCCACACCCCCACCCACAGACCCACATAATTTGAACACCGCAACCCACAGAAACCCACAACCCACAACCCACATGCGGCCACCCACAACCCACAGACCCACATACCCACACACTGACCCACAACGTTACCCACAATACCCACACCCACCCACAACCCACAGCGTTCACCCACATACCCACATACCCACATGAAGGACCCACATACCCACATCTTTGACCCACAACCCACATTTGACCCACAGACCCACATACATCAAACCCACAACCCACATTGACCCACAACCCACAAGACCCACACATGACCCACACACCCACAACCCACATAGCGACCCACATACCCACAACCCACAACACCCACAACCCACAACCCACAACCCACAGACCCACAACCCACAACCCACAACCCACAACCCACACACCCACAGACCCACACCC",
+                "ACCCACAAC");
 }
 
 /// DNA - Counting DNA Nucleotides
@@ -70,6 +75,7 @@ pub fn problemGC() !void {
     bio.freeFastaArray(gpa, seqs);
 }
 
+/// FIB - Rabbits andRecurrence Relations
 pub fn problemFIB(n: usize, k: usize) void {
     var fn2: usize = 1;
     var fn1: usize = 1;
@@ -86,8 +92,109 @@ pub fn problemFIB(n: usize, k: usize) void {
     print("{d}\n", .{f});
 }
 
+/// HAMM - Counting Point Mutations
 pub fn problemHAMM(seq1: []const u8, seq2: []const u8) void {
     const hamd = bio.hammingDist(seq1, seq2);
 
     print("{d}\n", .{hamd});
+}
+
+/// PERM - Enumerating Gene Orders
+pub fn problemPERM(n: usize) !void {
+    var perm1 = try gpa.alloc(u8, n);
+    defer gpa.free(perm1);
+
+    var fact: usize = 1;
+    for (0..n) |i| {
+        const j = i + 1;
+        perm1[i] = @truncate(j);
+        fact = fact * j;
+    }
+    print("{d}\n", .{fact});
+
+    var pit = try bio.PermIterator(u8).init(gpa, perm1);
+    defer pit.deinit(gpa);
+
+    while (pit.next()) |perm| {
+        for (perm) |p| {
+            print("{d} ", .{p});
+        }
+        print("\n", .{});
+    }
+}   
+
+/// Binomial coefficient
+/// n choose k
+pub fn binomial(n: usize, k: usize) usize {
+    // (n * (n - 1) * ... * (n - k + 1)) / (k * (k - 1) * ... * 1)
+    if (n == k or k == 0) {
+        return 1;
+    }
+
+    assert(n > k);
+
+    var t: usize = n - 1;
+    var num: usize = n;
+
+    // Numerator = n * (n - 1) * ... * (n - k + 1)
+    // k factors, (k-1) multiplications
+    while (t > (n - k)) : (t -= 1) {
+        num *= t;
+    }
+
+    // Denominator =  k * (k - 1) * ... * 1
+    // k factors, (k-1) multiplications
+    var den: usize = k;
+    t = k - 1;
+    while (t > 1) : (t -= 1) {
+        den *= t;
+    }
+
+    return num / den;
+}
+
+/// IPRB - Mendel's First Law
+pub fn problemIPRB(k: usize, m: usize, n:usize) void {
+    // Number of possible pairs = (k + m + n) choose 2
+    const t = binomial(k+m+n,2);
+    const tf: f64 = @floatFromInt(t);
+
+    // Number of pairs with at least 1 individual from k (homozygous dominant)
+    const a = binomial(k,2) + k * m + k * n;
+    const af: f64 = @floatFromInt(a);
+
+    // Number of pairs with two individuals from m (heterozygous)
+    const b = binomial(m,2);
+    const bf: f64 = @floatFromInt(b);
+
+    // Number of pairs with 1 individual from m and the other from n
+    const c = m * n;
+    const cf: f64 = @floatFromInt(c);
+
+    const p = (af/tf) + (bf/tf)*0.75 + (cf/tf)*0.5;
+    print("{d:.5}\n", .{p});
+}
+
+pub fn pascalsTriang(n: usize) void {
+    for (0..n+1) |i| {
+        for (0..i+1) |j| {
+            print("{d:3} ", .{ binomial(i,j)});
+        }
+        print("\n", .{});
+    }
+}
+
+/// SUBS - Finding a Motif in DNA 
+pub fn problemSUBS(seq: []const u8, sub: []const u8) void {
+    var base: usize = 0;
+    while (true) {
+        const pos = std.mem.indexOf(u8, seq[base..], sub);
+        if (pos) |p| {
+            print("{d} ", .{base+p+1});
+            base += p + 1;  // Restart at the next character
+        } else {
+            print("\n", .{});
+            break;
+        }
+    }
 }
