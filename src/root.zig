@@ -5,6 +5,7 @@ const Io = std.Io;
 const Reader = Io.Reader;
 const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
+const swap = std.mem.swap;
 
 const dnaPairMap: [26]u8 = .{
     'T',    // A -> T
@@ -260,6 +261,65 @@ pub fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
         }
     }
     try w.flush();
+}
+
+// Utilities
+
+/// Heap's algorithm as implemented by @DRcrazy3
+/// https://youtu.be/atD5EWada7k?si=nci2lVksjs2AAcAc
+pub fn PermIterator(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        items: []T,
+        counter: []usize, // c
+        ptr: usize, // i
+        first: bool,
+
+        pub fn init(alloc: Allocator, slice: []const T) !Self {
+            const items = try alloc.dupe(T, slice);
+            const counter = try alloc.alloc(usize, slice.len);
+            @memset(counter, 0);
+
+            return .{
+                .items = items,
+                .counter = counter,
+                .ptr = 1,
+                .first = true,
+            };
+        }
+
+        pub fn deinit(self: *Self, alloc: Allocator) void {
+            alloc.free(self.items);
+            alloc.free(self.counter);
+        }
+
+        pub fn next(self: *Self) ?[]T {
+            if (self.first) {
+                self.first = false;
+                return self.items;
+            }
+
+            while (self.ptr < self.items.len) {
+                const count = self.counter[self.ptr];
+
+                if (count < self.ptr) {
+                    // swap or rotate
+                    const j = if (self.ptr % 2 == 0) 0 else count;
+                    swap(T, &self.items[self.ptr], &self.items[j]);
+
+                    self.counter[self.ptr] += 1;
+                    self.ptr = 1;
+                    return self.items;
+                }
+
+                self.counter[self.ptr] = 0;
+                self.ptr += 1;
+            }
+
+            return null;
+        }
+    };
 }
 
 test "validSeq" {
