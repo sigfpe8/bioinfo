@@ -14,7 +14,7 @@ pub fn main(init: std.process.Init) !void {
     defer gpa.free(seq);
     std.debug.print("Random sequence: {s}\n", .{seq});
 
-    const fname = "example.fas";
+    const fname = "datasets/example.fas";
     const lines = try bio.readLines(io, gpa, fname);
     defer bio.freeLines(gpa, lines);
 

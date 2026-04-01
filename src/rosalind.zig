@@ -14,43 +14,51 @@ var io: std.Io = undefined;
 pub fn main(init: std.process.Init) !void {
     gpa = init.gpa;
     io = init.io;
-    // const lines = try bio.readLines(io, gpa, "/Users/cordeiro/Downloads/test-prot.txt");
-    // defer bio.freeLines(gpa, lines);
 
-    // bio.pascalsTriang(10);
-    // try problemPROT(lines[0]);
-    const fname = "/Users/cordeiro/Downloads/rosalind_revp.txt";
-    const seqs = try bio.readFastaFile(io, gpa, fname);
-
-    if (seqs.len > 0) {
-        problemREVP(seqs[0].seq);
-    }
-
-    bio.freeFastaArray(gpa, seqs);
+    try problemPROT();
+    // try problemREVP();
 }
 
+pub fn problemPROT() !void {
+    const fname = "datasets/rosalind_prot.txt";
+    const lines = try bio.readLines(io, gpa, fname);
+    defer bio.freeLines(gpa, lines);
+
+    try solvePROT(lines[0]);
+}
+
+pub fn problemREVP() !void {
+    const fname = "datasets/rosalind_revp.txt";
+    const seqs = try bio.readFastaFile(io, gpa, fname);
+    defer bio.freeFastaArray(gpa, seqs);
+
+    solveREVP(seqs[0].seq);
+}
+
+// ---------------------------------------------------------
+
 /// DNA - Counting DNA Nucleotides
-pub fn problemDNA(seq: []const u8) void {
+pub fn solveDNA(seq: []const u8) void {
     const nA, const nC, const nG, const nT = bio.countBases(seq);
     print("{d} {d} {d} {d}\n", .{nA,nC,nG,nT});
 }
 
 /// RNA - Transcribing DNA into RNA
-pub fn problemRNA(seq: []const u8) !void {
+pub fn solveRNA(seq: []const u8) !void {
     const rna = try bio.transcribe(gpa, seq);
     print("{s}\n", .{rna});
     gpa.free(rna);
 }
 
 /// REVC - Complementing a Strand of DNA
-pub fn problemREVC(seq: []const u8) !void {
+pub fn solveREVC(seq: []const u8) !void {
     const revC = try bio.revComplement(gpa, seq);
     print("{s}\n", .{revC});
     gpa.free(revC);
 }
 
 /// GC - Computing GC content
-pub fn problemGC() !void {
+pub fn solveGC() !void {
     // const fname = "~/Downloads/rosalind_gc.txt";
     const fname = "/Users/cordeiro/Downloads/rosalind_gc.txt";
     const seqs = try bio.readFastaFile(io, gpa, fname);
@@ -76,7 +84,7 @@ pub fn problemGC() !void {
 }
 
 /// FIB - Rabbits andRecurrence Relations
-pub fn problemFIB(n: usize, k: usize) void {
+pub fn solveFIB(n: usize, k: usize) void {
     var fn2: usize = 1;
     var fn1: usize = 1;
     var f: usize = 1;
@@ -93,14 +101,14 @@ pub fn problemFIB(n: usize, k: usize) void {
 }
 
 /// HAMM - Counting Point Mutations
-pub fn problemHAMM(seq1: []const u8, seq2: []const u8) void {
+pub fn solveHAMM(seq1: []const u8, seq2: []const u8) void {
     const hamd = bio.hammingDist(seq1, seq2);
 
     print("{d}\n", .{hamd});
 }
 
 /// PERM - Enumerating Gene Orders
-pub fn problemPERM(n: usize) !void {
+pub fn solvePERM(n: usize) !void {
     var perm1 = try gpa.alloc(u8, n);
     defer gpa.free(perm1);
 
@@ -124,7 +132,7 @@ pub fn problemPERM(n: usize) !void {
 }   
 
 /// IPRB - Mendel's First Law
-pub fn problemIPRB(k: usize, m: usize, n:usize) void {
+pub fn solveIPRB(k: usize, m: usize, n:usize) void {
     // Number of possible pairs = (k + m + n) choose 2
     const t = binomial(k+m+n,2);
     const tf: f64 = @floatFromInt(t);
@@ -146,7 +154,7 @@ pub fn problemIPRB(k: usize, m: usize, n:usize) void {
 }
 
 /// SUBS - Finding a Motif in DNA 
-pub fn problemSUBS(seq: []const u8, sub: []const u8) void {
+pub fn solveSUBS(seq: []const u8, sub: []const u8) void {
     var base: usize = 0;
     while (true) {
         const pos = std.mem.indexOf(u8, seq[base..], sub);
@@ -161,7 +169,7 @@ pub fn problemSUBS(seq: []const u8, sub: []const u8) void {
 }
 
 /// PROT - Translating RNA into Protein
-pub fn problemPROT(rna: []const u8) !void {
+fn solvePROT(rna: []const u8) !void {
     assert(rna.len % 3 == 0);
 
     var map = try bio.makeRNACodonMap(gpa);
@@ -185,7 +193,7 @@ pub fn problemPROT(rna: []const u8) !void {
 }
 
 /// REVP - Locating Restriction Sites
-pub fn problemREVP(seq: []const u8) void {
+fn solveREVP(seq: []const u8) void {
     var base: usize = 0;
 
     while (base < seq.len) : (base += 1) {
