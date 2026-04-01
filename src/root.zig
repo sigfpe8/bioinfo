@@ -11,7 +11,7 @@ const Io = std.Io;
 const Reader = Io.Reader;
 const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
-const Map = std.AutoHashMap;
+const Map = std.StringHashMap;
 
 
 const dnaPairMap: [26]u8 = .{
@@ -43,7 +43,7 @@ const dnaPairMap: [26]u8 = .{
     'Z',    // Z
 };
 
-const rnaCodonTable: []const u8 = .{
+const rnaCodonTable = [_][]const u8{
     "UUU", "F",      "CUU", "L",      "AUU", "I",      "GUU", "V",
     "UUC", "F",      "CUC", "L",      "AUC", "I",      "GUC", "V",
     "UUA", "L",      "CUA", "L",      "AUA", "I",      "GUA", "V",
@@ -62,8 +62,8 @@ const rnaCodonTable: []const u8 = .{
     "UGG", "W",      "CGG", "R",      "AGG", "R",      "GGG", "G", 
 };
 
-pub fn makeRNACodonMap(allocator: Allocator) !Map([]const u8, []const u8) {
-    var map = Map([]const u8, []const u8).init(allocator);
+pub fn makeRNACodonMap(allocator: Allocator) !Map([]const u8) {
+    var map = Map([]const u8).init(allocator);
     var i: usize = 0;
 
     while (i < rnaCodonTable.len - 1) : (i += 2) {

@@ -13,8 +13,11 @@ var io: std.Io = undefined;
 pub fn main(init: std.process.Init) !void {
     gpa = init.gpa;
     io = init.io;
-    problemSUBS("TCGAAAGACCCACAAACCCACATCAGGGAACCCACATCCCGACCCACACGGATCTTACCCACAACCCACAGCTTAACCCACATCAGCACCCACATTCTTACCCACATACCCACAGTAATGGGACCCACAACCTTCTACCCACAGACCCACAACCCACATAGGACCCACACCCGGGGATCGGTACCCACAACCCACATTACCCACATCGCAACCCACACGGACCCACACAGATTAAGAGTCTACCCACAACACCCACAGCCGCTACCCACAAACCCACAACCCACAAAACCCACATCACCCACAAACCCACAACCCTCCGCAAATAACCCACAGCACAACGACCCACAGAAGTATATTACCACCCACAACCCACAGCTGAACCCACAAAACCCACACTCAAACAACCCACATACCCACAGTATTGCGAACCCACAACCCACAGTAGTCACCCACAACCCACACCCCCACCCACAGACCCACATAATTTGAACACCGCAACCCACAGAAACCCACAACCCACAACCCACATGCGGCCACCCACAACCCACAGACCCACATACCCACACACTGACCCACAACGTTACCCACAATACCCACACCCACCCACAACCCACAGCGTTCACCCACATACCCACATACCCACATGAAGGACCCACATACCCACATCTTTGACCCACAACCCACATTTGACCCACAGACCCACATACATCAAACCCACAACCCACATTGACCCACAACCCACAAGACCCACACATGACCCACACACCCACAACCCACATAGCGACCCACATACCCACAACCCACAACACCCACAACCCACAACCCACAACCCACAGACCCACAACCCACAACCCACAACCCACAACCCACACACCCACAGACCCACACCC",
-                "ACCCACAAC");
+    const lines = try bio.readLines(io, gpa, "/Users/cordeiro/Downloads/rosalind_prot.txt");
+    defer bio.freeLines(gpa, lines);
+
+    print("lines.len={d}\n", .{lines.len});
+    try problemPROT(lines[0]);
 }
 
 /// DNA - Counting DNA Nucleotides
@@ -188,6 +191,25 @@ pub fn problemSUBS(seq: []const u8, sub: []const u8) void {
 }
 
 /// PROT - Translating RNA into Protein
-pub fn problemPROT() void {
+pub fn problemPROT(rna: []const u8) !void {
+    assert(rna.len % 3 == 0);
 
+    var map = try bio.makeRNACodonMap(gpa);
+    defer map.deinit();
+
+    var prot = try gpa.alloc(u8, rna.len / 3);
+    defer gpa.free(prot);
+
+    var i: usize = 0;
+    while (i < rna.len) : (i += 3) {
+        const cod = rna[i..i+3];        // The 3-letter codon
+        const pro = map.get(cod).?;     // Corresponding protein
+        prot[i / 3] = pro[0];
+    }
+
+    if (prot[prot.len-1] == '.') {
+        print("{s}\n", .{prot[0..prot.len-1]}); 
+    } else {
+        print("{s}\n", .{prot}); 
+    }
 }
