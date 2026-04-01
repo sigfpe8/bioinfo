@@ -1,5 +1,9 @@
 const std = @import("std");
 const bio = @import("bioinfo");
+
+const Io = std.Io;
+const Reader = Io.Reader;
+const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 
@@ -11,32 +15,28 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Random sequence: {s}\n", .{seq});
 
     const fname = "example.fas";
-    const seqs = try bio.readFastaFile(io, gpa, fname);
+    const lines = try bio.readLines(io, gpa, fname);
+    defer bio.freeLines(gpa, lines);
 
-    print("Sequences in file '{s}':\n", .{fname});
-    for (seqs) |s| {
-        print("ID:  {s}\nSeq: {s}\n\n", .{s.seqID, s.seq});
-    }
+    bio.printLines(lines);
+    // const seqs = try bio.readFastaFile(io, gpa, fname);
 
-    const cname = "copy.fas";
-    try bio.writeFastaFile(io, seqs, cname);
+    // print("Sequences in file '{s}':\n", .{fname});
+    // for (seqs) |s| {
+    //     print("ID:  {s}\nSeq: {s}\n\n", .{s.seqID, s.seq});
+    // }
 
-    bio.freeFastaArray(gpa, seqs);
+    // const cname = "copy.fas";
+    // try bio.writeFastaFile(io, seqs, cname);
 
-    const seqr = try bio.randomFastaArray(gpa, 5);
-    print("Sequences in random array\n", .{});
-    for (seqr) |s| {
-        print("ID:  {s}\nSeq: {s}\n\n", .{s.seqID, s.seq});
-    }
+    // bio.freeFastaArray(gpa, seqs);
 
-    bio.freeFastaArray(gpa, seqr);
-}
+    // const seqr = try bio.randomFastaArray(gpa, 5);
+    // print("Sequences in random array\n", .{});
+    // for (seqr) |s| {
+    //     print("ID:  {s}\nSeq: {s}\n\n", .{s.seqID, s.seq});
+    // }
 
-test "simple test" {
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(i32) = .empty;
-    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(gpa, 42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+    // bio.freeFastaArray(gpa, seqr);
 }
 

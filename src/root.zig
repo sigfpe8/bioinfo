@@ -1,11 +1,18 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+const utl = @import("utils.zig");
+pub const readLines = utl.readLines;
+pub const freeLines = utl.freeLines;
+pub const printLines = utl.printLines;
+pub const PermIterator = utl.PermIterator;
+
 const assert = std.debug.assert;
 const Io = std.Io;
 const Reader = Io.Reader;
 const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
-const swap = std.mem.swap;
+const Map = std.AutoHashMap;
+
 
 const dnaPairMap: [26]u8 = .{
     'T',    // A -> T
@@ -35,6 +42,38 @@ const dnaPairMap: [26]u8 = .{
     'Y',    // Y
     'Z',    // Z
 };
+
+const rnaCodonTable: []const u8 = .{
+    "UUU", "F",      "CUU", "L",      "AUU", "I",      "GUU", "V",
+    "UUC", "F",      "CUC", "L",      "AUC", "I",      "GUC", "V",
+    "UUA", "L",      "CUA", "L",      "AUA", "I",      "GUA", "V",
+    "UUG", "L",      "CUG", "L",      "AUG", "M",      "GUG", "V",
+    "UCU", "S",      "CCU", "P",      "ACU", "T",      "GCU", "A",
+    "UCC", "S",      "CCC", "P",      "ACC", "T",      "GCC", "A",
+    "UCA", "S",      "CCA", "P",      "ACA", "T",      "GCA", "A",
+    "UCG", "S",      "CCG", "P",      "ACG", "T",      "GCG", "A",
+    "UAU", "Y",      "CAU", "H",      "AAU", "N",      "GAU", "D",
+    "UAC", "Y",      "CAC", "H",      "AAC", "N",      "GAC", "D",
+    "UAA", ".",      "CAA", "Q",      "AAA", "K",      "GAA", "E",
+    "UAG", ".",      "CAG", "Q",      "AAG", "K",      "GAG", "E",
+    "UGU", "C",      "CGU", "R",      "AGU", "S",      "GGU", "G",
+    "UGC", "C",      "CGC", "R",      "AGC", "S",      "GGC", "G",
+    "UGA", ".",      "CGA", "R",      "AGA", "R",      "GGA", "G",
+    "UGG", "W",      "CGG", "R",      "AGG", "R",      "GGG", "G", 
+};
+
+pub fn makeRNACodonMap(allocator: Allocator) !Map([]const u8, []const u8) {
+    var map = Map([]const u8, []const u8).init(allocator);
+    var i: usize = 0;
+
+    while (i < rnaCodonTable.len - 1) : (i += 2) {
+        const rna = rnaCodonTable[i];
+        const pro = rnaCodonTable[i+1];
+        try map.put(rna,pro);
+    }
+
+    return map;
+}
 
 /// Check if the sequence is valid (only contains A, C, G, T).
 pub fn validSeq(seq: []const u8) bool {
@@ -261,65 +300,6 @@ pub fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
         }
     }
     try w.flush();
-}
-
-// Utilities
-
-/// Heap's algorithm as implemented by @DRcrazy3
-/// https://youtu.be/atD5EWada7k?si=nci2lVksjs2AAcAc
-pub fn PermIterator(comptime T: type) type {
-    return struct {
-        const Self = @This();
-
-        items: []T,
-        counter: []usize, // c
-        ptr: usize, // i
-        first: bool,
-
-        pub fn init(alloc: Allocator, slice: []const T) !Self {
-            const items = try alloc.dupe(T, slice);
-            const counter = try alloc.alloc(usize, slice.len);
-            @memset(counter, 0);
-
-            return .{
-                .items = items,
-                .counter = counter,
-                .ptr = 1,
-                .first = true,
-            };
-        }
-
-        pub fn deinit(self: *Self, alloc: Allocator) void {
-            alloc.free(self.items);
-            alloc.free(self.counter);
-        }
-
-        pub fn next(self: *Self) ?[]T {
-            if (self.first) {
-                self.first = false;
-                return self.items;
-            }
-
-            while (self.ptr < self.items.len) {
-                const count = self.counter[self.ptr];
-
-                if (count < self.ptr) {
-                    // swap or rotate
-                    const j = if (self.ptr % 2 == 0) 0 else count;
-                    swap(T, &self.items[self.ptr], &self.items[j]);
-
-                    self.counter[self.ptr] += 1;
-                    self.ptr = 1;
-                    return self.items;
-                }
-
-                self.counter[self.ptr] = 0;
-                self.ptr += 1;
-            }
-
-            return null;
-        }
-    };
 }
 
 test "validSeq" {
