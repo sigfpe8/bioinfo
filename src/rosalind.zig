@@ -14,11 +14,19 @@ var io: std.Io = undefined;
 pub fn main(init: std.process.Init) !void {
     gpa = init.gpa;
     io = init.io;
-    const lines = try bio.readLines(io, gpa, "/Users/cordeiro/Downloads/test-prot.txt");
-    defer bio.freeLines(gpa, lines);
+    // const lines = try bio.readLines(io, gpa, "/Users/cordeiro/Downloads/test-prot.txt");
+    // defer bio.freeLines(gpa, lines);
 
-    bio.pascalsTriang(10);
-    try problemPROT(lines[0]);
+    // bio.pascalsTriang(10);
+    // try problemPROT(lines[0]);
+    const fname = "/Users/cordeiro/Downloads/rosalind_revp.txt";
+    const seqs = try bio.readFastaFile(io, gpa, fname);
+
+    if (seqs.len > 0) {
+        problemREVP(seqs[0].seq);
+    }
+
+    bio.freeFastaArray(gpa, seqs);
 }
 
 /// DNA - Counting DNA Nucleotides
@@ -173,5 +181,22 @@ pub fn problemPROT(rna: []const u8) !void {
         print("{s}\n", .{prot[0..prot.len-1]}); 
     } else {
         print("{s}\n", .{prot}); 
+    }
+}
+
+/// REVP - Locating Restriction Sites
+pub fn problemREVP(seq: []const u8) void {
+    var base: usize = 0;
+
+    while (base < seq.len) : (base += 1) {
+        var i: usize = 4;
+        while (i <= 12) : (i += 2) {
+            if (base + i > seq.len) {
+                break;
+            }
+            if (bio.isRevPalindrome(seq[base..base+i])) {
+                print("{d} {d}\n", .{base+1, i});
+            }
+        }
     }
 }

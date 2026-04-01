@@ -4,6 +4,7 @@ const utl = @import("utils.zig");
 pub const readLines = utl.readLines;
 pub const freeLines = utl.freeLines;
 pub const printLines = utl.printLines;
+pub const pascalsTriang = utl.pascalsTriang;
 pub const PermIterator = utl.PermIterator;
 
 const assert = std.debug.assert;
@@ -62,13 +63,13 @@ const rnaCodonTable = [_][]const u8{
     "UGG", "W",      "CGG", "R",      "AGG", "R",      "GGG", "G", 
 };
 
-pub fn makeRNACodonMap(allocator: Allocator) !Map([]const u8) {
-    var map = Map([]const u8).init(allocator);
+pub fn makeRNACodonMap(allocator: Allocator) !Map(u8) {
+    var map = Map(u8).init(allocator);
     var i: usize = 0;
 
     while (i < rnaCodonTable.len - 1) : (i += 2) {
         const rna = rnaCodonTable[i];
-        const pro = rnaCodonTable[i+1];
+        const pro = rnaCodonTable[i+1][0];
         try map.put(rna,pro);
     }
 
@@ -153,6 +154,26 @@ pub fn revComplement(allocator: Allocator, seq: []const u8) ![]u8 {
         comp[len - i] = if (c >= 'A' and c <= 'Z') dnaPairMap[c - 'A'] else c;
     }
     return comp;
+}
+
+/// Check if a sequence is a "Reverse Palindrome", that is, if
+/// its reverse complement is equal to itself.
+pub fn isRevPalindrome(seq: []const u8) bool {
+    const len = seq.len;
+    if (len == 0 or len % 2 == 1) {
+        return false;
+    }
+
+    var i: usize = 0;
+    while (i < len / 2) : (i += 1) {
+        const c = seq[i];
+        const r = if (c >= 'A' and c <= 'Z') dnaPairMap[c - 'A'] else c;
+        if (seq[len - i - 1] != r) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /// Transcribe the given DNA sequence to RNA (replace T with U).
