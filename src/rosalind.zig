@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const bio = @import("root.zig");
+const binomial = bio.binomial;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const print = std.debug.print;
@@ -13,10 +14,10 @@ var io: std.Io = undefined;
 pub fn main(init: std.process.Init) !void {
     gpa = init.gpa;
     io = init.io;
-    const lines = try bio.readLines(io, gpa, "/Users/cordeiro/Downloads/rosalind_prot.txt");
+    const lines = try bio.readLines(io, gpa, "/Users/cordeiro/Downloads/test-prot.txt");
     defer bio.freeLines(gpa, lines);
 
-    print("lines.len={d}\n", .{lines.len});
+    bio.pascalsTriang(10);
     try problemPROT(lines[0]);
 }
 
@@ -114,36 +115,6 @@ pub fn problemPERM(n: usize) !void {
     }
 }   
 
-/// Binomial coefficient
-/// n choose k
-pub fn binomial(n: usize, k: usize) usize {
-    // (n * (n - 1) * ... * (n - k + 1)) / (k * (k - 1) * ... * 1)
-    if (n == k or k == 0) {
-        return 1;
-    }
-
-    assert(n > k);
-
-    var t: usize = n - 1;
-    var num: usize = n;
-
-    // Numerator = n * (n - 1) * ... * (n - k + 1)
-    // k factors, (k-1) multiplications
-    while (t > (n - k)) : (t -= 1) {
-        num *= t;
-    }
-
-    // Denominator =  k * (k - 1) * ... * 1
-    // k factors, (k-1) multiplications
-    var den: usize = k;
-    t = k - 1;
-    while (t > 1) : (t -= 1) {
-        den *= t;
-    }
-
-    return num / den;
-}
-
 /// IPRB - Mendel's First Law
 pub fn problemIPRB(k: usize, m: usize, n:usize) void {
     // Number of possible pairs = (k + m + n) choose 2
@@ -164,15 +135,6 @@ pub fn problemIPRB(k: usize, m: usize, n:usize) void {
 
     const p = (af/tf) + (bf/tf)*0.75 + (cf/tf)*0.5;
     print("{d:.5}\n", .{p});
-}
-
-pub fn pascalsTriang(n: usize) void {
-    for (0..n+1) |i| {
-        for (0..i+1) |j| {
-            print("{d:3} ", .{ binomial(i,j)});
-        }
-        print("\n", .{});
-    }
 }
 
 /// SUBS - Finding a Motif in DNA 
@@ -204,7 +166,7 @@ pub fn problemPROT(rna: []const u8) !void {
     while (i < rna.len) : (i += 3) {
         const cod = rna[i..i+3];        // The 3-letter codon
         const pro = map.get(cod).?;     // Corresponding protein
-        prot[i / 3] = pro[0];
+        prot[i / 3] = pro;
     }
 
     if (prot[prot.len-1] == '.') {

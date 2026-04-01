@@ -5,9 +5,51 @@ const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
 const print = std.debug.print;
 const swap = std.mem.swap;
+const assert = std.debug.assert;
 
 /// Utilities
 /// zig 0.16.0
+
+/// Binomial coefficient
+/// n choose k
+pub fn binomial(n: usize, k: usize) usize {
+    // (n * (n - 1) * ... * (n - k + 1)) / (k * (k - 1) * ... * 1)
+    if (n == k or k == 0) {
+        return 1;
+    }
+
+    assert(n > k);
+
+    var t: usize = n - 1;
+    var num: usize = n;
+
+    // Numerator = n * (n - 1) * ... * (n - k + 1)
+    // k factors, (k-1) multiplications
+    while (t > (n - k)) : (t -= 1) {
+        num *= t;
+    }
+
+    // Denominator =  k * (k - 1) * ... * 1
+    // k factors, (k-1) multiplications
+    var den: usize = k;
+    t = k - 1;
+    while (t > 1) : (t -= 1) {
+        den *= t;
+    }
+
+    return num / den;
+}
+
+/// Print Pascal's Triangle of order n
+pub fn pascalsTriang(n: usize) void {
+    for (0..n+1) |i| {
+        for (0..i+1) |j| {
+            print("{d:3} ", .{ binomial(i,j)});
+        }
+        print("\n", .{});
+    }
+}
+
 /// Read all lines in a file into a slice of text slices
 pub fn readLines(io: Io, allocator: Allocator, fname: []const u8) ![][]u8 {
     const file = try Io.Dir.cwd().openFile(io, fname, .{ .mode = .read_only });
