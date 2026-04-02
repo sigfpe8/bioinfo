@@ -1,9 +1,12 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
 const utl = @import("utils.zig");
+pub const binomial = utl.binomial;
+pub const readLine = utl.readLine;
 pub const readLines = utl.readLines;
 pub const freeLines = utl.freeLines;
 pub const printLines = utl.printLines;
+pub const IntsReader = utl.IntsReader;
 pub const pascalsTriang = utl.pascalsTriang;
 pub const PermIterator = utl.PermIterator;
 
@@ -210,7 +213,7 @@ pub fn hammingDist(seq1: []const u8, seq2: []const u8) isize {
 
 // This struct represents a single sequence in a FASTA file.
 // A file can contain multiple sequences.
-const Fasta = struct {
+pub const Fasta = struct {
     seqID: []const u8,
     seq: []const u8,
 };
