@@ -1,5 +1,6 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+
 const utl = @import("utils.zig");
 pub const binomial = utl.binomial;
 pub const readLine = utl.readLine;
@@ -9,6 +10,9 @@ pub const printLines = utl.printLines;
 pub const IntsReader = utl.IntsReader;
 pub const pascalsTriang = utl.pascalsTriang;
 pub const PermIterator = utl.PermIterator;
+
+const mot = @import("motif.zig");
+pub const Motif = mot.Motif;
 
 const assert = std.debug.assert;
 const Io = std.Io;
@@ -477,4 +481,33 @@ test "hammingDist" {
     try std.testing.expectEqual(hammingDist("CAAACGTT","CAAACGTT"), 0);
     try std.testing.expectEqual(hammingDist("CAAACGTT","CAAACGTC"), 1);
     try std.testing.expectEqual(hammingDist("CAAACGTT","GAAACGTC"), 2);
+}
+
+test "Motif" {
+    const gpa = std.testing.allocator;
+    var motif = Motif.init(gpa);
+    defer motif.deinit();
+    // try motif.encode("ABC[DEF]G{HIJKL}");
+
+    try motif.encode("ABC");
+    try std.testing.expect(motif.match("ABC"));     // Exact match
+    try std.testing.expect(motif.match("ABCD"));    // Pattern shorter than text
+    try std.testing.expect(!motif.match("AB"));     // Text shorter than pattern (fail)
+
+    try motif.encode("A[BCD]E");
+    try std.testing.expect(motif.match("ABE"));
+    try std.testing.expect(motif.match("ACE"));
+    try std.testing.expect(motif.match("ADE"));
+    try std.testing.expect(!motif.match("AFE"));
+
+    try motif.encode("A{BCD}E");
+    try std.testing.expect(!motif.match("ABE"));
+    try std.testing.expect(!motif.match("ACE"));
+    try std.testing.expect(!motif.match("ADE"));
+    try std.testing.expect(motif.match("AFE"));
+
+    try motif.encode("ABC[DEF]G{HIJKL}");
+    try std.testing.expect(motif.match("ABCEGM"));
+    try std.testing.expect(motif.match("ABCFGYZ"));
+    try std.testing.expect(!motif.match("ABCFYZ"));
 }

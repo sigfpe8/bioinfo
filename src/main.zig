@@ -19,5 +19,16 @@ pub fn main(init: std.process.Init) !void {
     for (seqs) |s| {
         print("ID:  {s}\nSeq: {s}\n\n", .{s.seqID, s.seq});
     }
+
+    var motif = bio.Motif.init(gpa);
+    defer motif.deinit();
+    // try motif.encode("ABC[DEF]G{HIJKL}");
+    try motif.encode("A{GFDK}C");
+    motif.decode();
+    if (motif.match("ABC")) {
+        print("Success\n", .{});
+    } else {
+        print("Failure\n", .{});        
+    }
 }
 
