@@ -17,6 +17,10 @@ const Writer = Io.Writer;
 const Allocator = std.mem.Allocator;
 const Map = std.StringHashMap;
 
+pub const BioError = error{
+    DifferentLengths,
+    TooManySequences,
+};
 
 const dnaPairMap: [26]u8 = .{
     'T',    // A -> T
@@ -208,14 +212,94 @@ pub fn hammingDist(seq1: []const u8, seq2: []const u8) isize {
     return hamd;
 }
 
+pub fn profile(allocator: Allocator, seqs: [][]u8) ![][]u8 {
+    // Since we use u8's to count the # of each nucleotide in a certain
+    // position, the maximum # of sequences we can compare is 255. This
+    // seems reasonable for the current tests buf if a larger number is
+    // required, we can make the type a comptime parameter and use bigger
+    // integers when necessary.
+    if (seqs.len > 255) {
+        return BioError.TooManySequences;
+    }
 
+    // Make sure all the sequences have the same length
+    const len = seqs[0].len;
+    for (seqs[1..]) |seq| {
+        if (seq.len != len) {
+            return BioError.DifferentLengths;
+        }
+    }
+
+    // Allocate the profile matrix and initialize it with 0's.
+    // Each line has the same length as the incoming DNA sequences.
+    //    A:  0 0 0 ... 0
+    //    C:  0 0 0 ... 0
+    //    G:  0 0 0 ... 0
+    //    T:  0 0 0 ... 0
+    var prof = try allocator.alloc([]u8,4);
+    for (0..4) |i| {
+        const cnt = try allocator.alloc(u8, len);
+        @memset(cnt, 0);
+        prof[i] = cnt;
+    }
+
+    // Scan all the incoming DNA sequences
+    for (seqs) |seq| {
+        // Scan all positions
+        for (seq, 0..) |c, p| {
+            const n: usize = switch (c) {
+                'A' => 0,
+                'C' => 1,
+                'G' => 2,
+                'T' => 3,
+                else => unreachable,
+            };
+            // Increment counter for corresponding nucleotide and position
+            prof[n][p] += 1;
+        }
+    }
+
+    return prof;
+}
+
+pub fn freeProfile(allocator: Allocator, prof: [][]u8) void {
+    for (prof) |cnts| {
+        allocator.free(cnts);
+    }
+    allocator.free(prof);
+}
+
+pub fn consensus(allocator: Allocator, prof: [][]u8) ![]u8 {
+    const len = prof[0].len;
+    var cons = try allocator.alloc(u8, len);
+
+    for (0..len) |i| {
+        var max = prof[0][i];
+        var idx: usize = 0;
+        for (1..4) |j| {
+            if (prof[j][i] > max) {
+                max = prof[j][i];
+                idx = j;
+            }
+        }
+        cons[i] = switch (idx) {
+            0 => 'A',
+            1 => 'C',
+            2 => 'G',
+            3 => 'T',
+            else => unreachable,
+        };
+    }
+
+    return cons;
+}
 // Support for FASTA files
 
 // This struct represents a single sequence in a FASTA file.
 // A file can contain multiple sequences.
 pub const Fasta = struct {
-    seqID: []const u8,
-    seq: []const u8,
+    seqID: []u8,
+    seq: []u8,
 };
 
 pub fn randomFastaArray(allocator: Allocator, n: usize) ![]Fasta {
@@ -324,6 +408,17 @@ pub fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
         }
     }
     try w.flush();
+}
+
+/// Duplicate an array of Fasta sequences as a simple array of sequences
+pub fn fastaToSequences(allocator: Allocator, seqs: []Fasta) ![][]u8 {
+    var lines = try allocator.alloc([]u8, seqs.len);
+
+    for (seqs, 0..) |seq, i| {
+        lines[i] = try allocator.dupe(u8, seq.seq);
+    }
+
+    return lines;
 }
 
 test "validSeq" {

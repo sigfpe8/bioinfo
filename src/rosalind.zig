@@ -23,10 +23,11 @@ pub fn main(init: std.process.Init) !void {
     // try problemFIB();
     // try problemHAMM();
     // try problemPERM();
-    try problemIPRB();
+    // try problemIPRB();
     // try problemSUBS();
     // try problemPROT();
     // try problemREVP();
+    try problemCONS();
 }
 
 // Each problemXYZ() function below gathers the necessary data for
@@ -129,6 +130,17 @@ fn problemREVP() !void {
     defer bio.freeFastaArray(gpa, seqs);
 
     solveREVP(seqs[0].seq);
+}
+
+fn problemCONS() !void {
+    const fname = "datasets/rosalind_cons.txt";
+    const seqs = try bio.readFastaFile(io, gpa, fname);
+    defer bio.freeFastaArray(gpa, seqs);
+
+    const seqs2 = try bio.fastaToSequences(gpa, seqs);
+    defer bio.freeLines(gpa, seqs2);
+
+    try solveCONS(seqs2);
 }
 
 // ---------------------------------------------------------
@@ -294,3 +306,33 @@ fn solveREVP(seq: []const u8) void {
         }
     }
 }
+
+/// CONS - Consensus and Profile
+fn solveCONS(seqs: [][]u8) !void {
+    const prof = try bio.profile(gpa, seqs);
+    defer bio.freeProfile(gpa, prof);
+
+    const cons = try bio.consensus(gpa, prof);
+    defer gpa.free(cons);
+
+    // Print the consensus string
+    print("{s}\n", .{cons});
+
+    // Print the profile matrix
+    for (prof, 0..) |cnts, i| {
+        const sym: u8 = switch (i) {
+            0 => 'A',
+            1 => 'C',
+            2 => 'G',
+            3 => 'T',
+            else => unreachable,
+        };
+
+        print("{c}:", .{sym});
+        for (cnts) |cnt| {
+            print(" {d}", .{cnt});
+        }
+        print("\n", .{});
+    }
+}
+
