@@ -108,6 +108,7 @@ pub const Motif = struct {
         self.allocator.free(self.pattern);
     }
 
+    // Encode a textual motif into a simple binary form
     pub fn encode(self: *Self, text: []const u8) !void {
         var buffer: [1024]u8 = undefined;
         self.deinit();  // The motif can be reused with a different pattern
@@ -185,6 +186,7 @@ pub const Motif = struct {
         self.pattern = try self.allocator.dupe(u8, buffer[0..end]);
     }
 
+    // Pretty printer for a motif
     pub fn decode(self: *Self) void {
         var i: usize = 0;
 
@@ -227,6 +229,7 @@ pub const Motif = struct {
         std.debug.print("\n", .{});
     }
 
+    // Try to match a motif against a string
     pub fn match(self: *Self, text: []const u8) bool {
         var it: usize = 0;  // Text to match
         var ip: usize = 0;  // Pattern
@@ -278,6 +281,22 @@ pub const Motif = struct {
                 continue;   // Match, advance to the next pattern
             }
         }
+    }
+
+    // Try to match a motif against all positions in a sequence and return
+    // a list of positions where the match succeeded
+    pub fn locations(self: *Self, seq: []const u8) ![]usize {
+        var list: std.ArrayList(usize) = .empty;
+        var i: usize = 0;
+
+        // If we find the motif at any position, add its inded to the list
+        while (i < seq.len) : (i += 1) {
+            if (self.match(seq[i..])) {
+                try list.append(self.allocator, i+1);
+            }
+        }
+
+        return list.toOwnedSlice(self.allocator);
     }
 };
 

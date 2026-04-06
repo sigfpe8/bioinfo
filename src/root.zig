@@ -24,6 +24,7 @@ const Map = std.StringHashMap;
 pub const BioError = error{
     DifferentLengths,
     TooManySequences,
+    FailedToLoadProtein,
 };
 
 const dnaPairMap: [26]u8 = .{
@@ -297,6 +298,7 @@ pub fn consensus(allocator: Allocator, prof: [][]u8) ![]u8 {
 
     return cons;
 }
+
 // Support for FASTA files
 
 // This struct represents a single sequence in a FASTA file.
@@ -423,6 +425,83 @@ pub fn fastaToSequences(allocator: Allocator, seqs: []Fasta) ![][]u8 {
     }
 
     return lines;
+}
+
+/// Get a protein fasta file
+/// First try to get it from the cache (datasets/uniprot).
+/// If not already there, fetch it from the site uniprot.org and save it in the cache.
+pub fn getProtein(io: Io, gpa: Allocator, prot_name: []const u8) ![]Fasta {
+    const fname = try std.fmt.allocPrint(gpa, "datasets/uniprot/{s}.fasta", .{prot_name});
+    defer gpa.free(fname);
+
+    var fasta: []Fasta = undefined;
+
+    fasta = readFastaFile(io, gpa, fname) catch not_cached: {
+        // Looks like this protein is not cached; fetch it from the web
+        const prot = fetchProtein(io, gpa, prot_name) catch not_fetched: {
+            // Fetch from the Web failed
+            // Try simplified name, say P22457 instead of P22457_FA7_BOVIN
+            if (std.mem.findScalar(u8, prot_name, '_')) |pos| {
+                const pro = try fetchProtein(io, gpa, prot_name[0..pos]);
+                break :not_fetched pro;
+            } else {
+                return BioError.FailedToLoadProtein;
+            }
+        };
+        defer gpa.free(prot);
+        // Save the file contents for future use
+        try cacheProtein(io, gpa, prot_name, prot);
+        const fetched = try readFastaBuffer(gpa, prot);
+        break :not_cached fetched;
+    };
+
+    return fasta;
+}
+
+/// Fetch a protein .fasta file from uniprot.org
+/// Return the contents of the file as a string so that it can be
+/// easily cached and then be used to generate the []Fasta array.
+pub fn fetchProtein(io: Io, gpa: Allocator, prot_name: []const u8) ![]u8 {
+    var client: std.http.Client = .{
+        .allocator = gpa,
+        .io = io,
+    };
+    defer client.deinit();
+
+    var result_body = std.Io.Writer.Allocating.init(gpa);
+    defer result_body.deinit();
+
+    const prot_site = "https://www.uniprot.org/uniprot/";
+    const url = try std.fmt.allocPrint(gpa,"{s}{s}.fasta", .{prot_site,prot_name});
+    defer gpa.free(url);
+
+    const response = try client.fetch(.{
+        .location = .{ .url = url },
+        .response_writer = &result_body.writer,
+    });
+
+    if (response.status.class() != .success) {
+        return BioError.FailedToLoadProtein;
+    }
+
+    return result_body.toOwnedSlice();
+}
+
+/// Save a just fetched protein in the cache directory.
+/// `prot` is the full contents of the fasta file as a string.
+fn cacheProtein(io: Io, gpa: Allocator, prot_name: []const u8, prot: []const u8) !void {
+    const fname = try std.fmt.allocPrint(gpa, "datasets/uniprot/{s}.fasta", .{prot_name});
+    defer gpa.free(fname);
+
+    const file = try Io.Dir.cwd().createFile(io, fname, .{});
+    defer file.close(io);
+
+    var buffer: [1024]u8 = undefined;
+    var file_writer: Io.File.Writer = .init(file, io, &buffer);
+    var writer = &file_writer.interface;
+
+    try writer.print("{s}\n", .{prot});
+    try writer.flush();
 }
 
 test "validSeq" {

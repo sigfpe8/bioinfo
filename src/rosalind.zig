@@ -27,7 +27,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemSUBS();
     // try problemPROT();
     // try problemREVP();
-    try problemCONS();
+    // try problemCONS();
+    try problemMPRT();
 }
 
 // Each problemXYZ() function below gathers the necessary data for
@@ -141,6 +142,14 @@ fn problemCONS() !void {
     defer bio.freeLines(gpa, seqs2);
 
     try solveCONS(seqs2);
+}
+
+fn problemMPRT() !void {
+    const fname = "datasets/rosalind_mprt.txt";
+    const list = try bio.readLines(io, gpa, fname);
+    defer bio.freeLines(gpa, list);
+
+    try solveMPRT(list);
 }
 
 // ---------------------------------------------------------
@@ -336,3 +345,28 @@ fn solveCONS(seqs: [][]u8) !void {
     }
 }
 
+/// MPRT - Finding a Protein Motif
+fn solveMPRT(list: [][] u8) !void {
+    var motif = bio.Motif.init(gpa);
+    defer motif.deinit();
+    // N-glycosylation motif
+    try motif.encode("N{P}[ST]{P}");
+
+    for (list) |prot_name| {
+        const fasta = try bio.getProtein(io, gpa, prot_name);
+        const seq = fasta[0].seq;
+        // std.debug.print("Tesing {s}\n", .{prot_name});
+        const locs  = try motif.locations(seq);
+
+        if (locs.len > 0) {
+            std.debug.print("{s}\n", .{prot_name});
+            for (locs) |loc| {
+                std.debug.print("{d} ", .{loc});
+            }
+            std.debug.print("\n", .{});
+        }
+        // Free resources for this protein
+        gpa.free(locs);
+        bio.freeFastaArray(gpa, fasta);
+    }
+}
