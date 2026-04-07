@@ -10,10 +10,6 @@ const Allocator = std.mem.Allocator;
 // for human clarity only and are ignored when interpreting the motif.
 // Each pattern must match a single amino acid in the test protein.
 // 
-// The basic pattern is a single uppercase letter that represents one
-// particular amino acid. For example:
-//      A, E, M or T
-// 
 // The following patterns can be used in a motif:
 // 
 // 1. Single uppercase letters describe one particular amino acid
@@ -86,6 +82,7 @@ const MotifError = error{
     ExpectedClosingBracket,
     ExpectedClosingBrace,
     EmptyPattern,
+    PatternBufferFull,
 };
 
 pub const Motif = struct {
@@ -123,6 +120,15 @@ pub const Motif = struct {
             var c = text[inp];
             inp += 1;
 
+            if (c == '-') {     // Ignore dashes
+                continue;
+            }
+
+            // Leave room at least for [n or {n
+            if (end >= buffer.len - 2) {
+                return MotifError.PatternBufferFull;
+            }
+
             if (c >= 'A' and c <= 'Z') {
                 // Single amino acid
                 buffer[end] = c;    // Add another single-letter pattern
@@ -150,6 +156,9 @@ pub const Motif = struct {
                         buffer[beg] = len;
                         break;
                     }
+                    if (end >= buffer.len) {
+                        return MotifError.PatternBufferFull;
+                    }
                     buffer[end] = c;    // Add another letter to the alternative set
                     end += 1;
                 }
@@ -176,6 +185,9 @@ pub const Motif = struct {
                         buffer[beg] = len;
                         break;
                     }
+                    if (end >= buffer.len) {
+                        return MotifError.PatternBufferFull;
+                    }
                     buffer[end] = c;    // Add another letter to the exclusion set
                     end += 1;
                 }
@@ -187,14 +199,17 @@ pub const Motif = struct {
     }
 
     // Pretty printer for a motif
-    pub fn decode(self: *Self) void {
+    pub fn decode(self: *Self) ![]u8 {
         var i: usize = 0;
+        var ioWriter = std.Io.Writer.Allocating.init(self.allocator);
+        defer ioWriter.deinit();
+        const writer = &ioWriter.writer;
 
         while (i < self.pattern.len) {
             var c = self.pattern[i];
             i += 1;
             if (c >= 'A' and c <= 'Z') {
-                std.debug.print("{c}", .{c});
+                try writer.print("{c}", .{c});
                 continue;
             }
 
@@ -203,30 +218,30 @@ pub const Motif = struct {
             if (c == '[') {
                 var n = self.pattern[i];
                 i += 1;
-                std.debug.print("[{d}:", .{n});
+                try writer.print("[{d}:", .{n});
                 while (n > 0) : (n -= 1) {
                     c = self.pattern[i];
                     i += 1;
-                    std.debug.print("{c}", .{c});
+                    try writer.print("{c}", .{c});
                 }
-                std.debug.print("]", .{});
+                try writer.print("]", .{});
                 continue;
             }
 
             if (c == '{') {
                 var n = self.pattern[i];
                 i += 1;
-                std.debug.print("{{{d}:", .{n});
+                try writer.print("{{{d}:", .{n});
                 while (n > 0) : (n -= 1) {
                     c = self.pattern[i];
                     i += 1;
-                    std.debug.print("{c}", .{c});
+                    try writer.print("{c}", .{c});
                 }
-                std.debug.print("}}", .{});
+                try writer.print("}}", .{});
                 continue;
             }
         }
-        std.debug.print("\n", .{});
+        return self.allocator.dupe(u8, writer.buffer[0..writer.end]);
     }
 
     // Try to match a motif against a string

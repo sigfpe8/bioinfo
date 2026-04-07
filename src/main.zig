@@ -22,10 +22,14 @@ pub fn main(init: std.process.Init) !void {
 
     var motif = bio.Motif.init(gpa);
     defer motif.deinit();
-    // try motif.encode("ABC[DEF]G{HIJKL}");
-    try motif.encode("A{GFDK}C");
-    motif.decode();
-    if (motif.match("ABC")) {
+    try motif.encode("ABC[DEF]G{HIJKL}");
+    // try motif.encode("A{GFDK}C");
+    const decod = try motif.decode();
+    defer gpa.free(decod);
+    print("Motif = {s}\n", .{decod});
+    const text = "ABCEGM";
+    print("Text  = {s}\n", .{text});
+    if (motif.match(text)) {
         print("Success\n", .{});
     } else {
         print("Failure\n", .{});        
