@@ -28,7 +28,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemPROT();
     // try problemREVP();
     // try problemCONS();
-    try problemMPRT();
+    // try problemMPRT();
+    try problemGRPH();
 }
 
 // Each problemXYZ() function below gathers the necessary data for
@@ -150,6 +151,14 @@ fn problemMPRT() !void {
     defer bio.freeLines(gpa, list);
 
     try solveMPRT(list);
+}
+
+fn problemGRPH() !void {
+    const fname = "datasets/rosalind_grph.txt";
+    const seqs = try bio.readFastaFile(io, gpa, fname);
+    defer bio.freeFastaArray(gpa, seqs);
+
+    solveGRPH(seqs, 3);
 }
 
 // ---------------------------------------------------------
@@ -368,5 +377,27 @@ fn solveMPRT(list: [][] u8) !void {
         // Free resources for this protein
         gpa.free(locs);
         bio.freeFastaArray(gpa, fasta);
+    }
+}
+
+/// GRPH - Overlap Graphs
+fn solveGRPH(seqs: []Fasta, k: usize) void {
+    var i: usize = 0;
+    var j: usize = 0;
+
+    while (i < seqs.len - 1) : (i += 1) {
+        j = i + 1;
+        const s1 = seqs[i].seq;
+        while (j < seqs.len) : (j += 1) {
+            const s2 = seqs[j].seq;
+            // s1 -> s2 ?
+            if (std.mem.eql(u8, s1[s1.len - k..], s2[0..k])) {
+                print("{s} {s}\n", .{seqs[i].seqID, seqs[j].seqID});
+            }
+            // s2 -> s1 ?
+            if (std.mem.eql(u8, s2[s2.len - k..], s1[0..k])) {
+                print("{s} {s}\n", .{seqs[j].seqID, seqs[i].seqID});
+            }
+        }
     }
 }
