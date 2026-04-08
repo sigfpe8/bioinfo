@@ -5,16 +5,27 @@ const std = @import("std");
 const bio = @import("root.zig");
 const Fasta = bio.Fasta;
 const binomial = bio.binomial;
+
+const Io = std.Io;
+const File = Io.File;
+const Reader = Io.Reader;
+const Writer = Io.Writer;
+
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
-const print = std.debug.print;
+// const print = std.debug.print;
 
 var gpa: Allocator = undefined;
 var io: std.Io = undefined;
+var stdout_buffer: [1024]u8 = undefined;
+var file_writer: File.Writer = undefined;
+var stdout: *Writer = undefined; 
 
 pub fn main(init: std.process.Init) !void {
     gpa = init.gpa;
     io = init.io;
+    file_writer = std.Io.File.Writer.init(.stdout(), io, &stdout_buffer);
+    stdout = &file_writer.interface;
 
     // try problemDNA();
     // try problemRNA();
@@ -400,4 +411,11 @@ fn solveGRPH(seqs: []Fasta, k: usize) void {
             }
         }
     }
+    stdout.flush() catch {};
+}
+
+fn print(comptime fmt: []const u8, args: anytype) void {
+    stdout.print(fmt, args) catch |err| {
+        std.debug.print("Error {} writing to stdout\n", .{err});
+    };
 }
