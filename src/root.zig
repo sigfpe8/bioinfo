@@ -27,6 +27,7 @@ pub const BioError = error{
     FailedToLoadProtein,
 };
 
+/// Map one nucleotide to its complement
 const dnaPairMap: [26]u8 = .{
     'T',    // A -> T
     'B',    // B
@@ -56,6 +57,69 @@ const dnaPairMap: [26]u8 = .{
     'Z',    // Z
 };
 
+/// Count of how many codons can encode one amino acid
+pub const aacTable: [26]u8 = .{
+//  3,    // .   UAA, UAG, UGA (Stop)
+    4,    // A   GCU, GCC, GCA, GCG
+    0,    // B
+    2,    // C   UGU, UGC
+    2,    // D   GAU, GAC
+    2,    // E   GAA, GAG
+    2,    // F   UUU, FFF
+    4,    // G   GGU, GGC, GGA, GGG
+    2,    // H   CAU, CAC
+    3,    // I   AUU, AUC
+    0,    // J
+    2,    // K   AAA, AAG
+    6,    // L   UUA, UUG, CUU, CUC, CUA, CUG
+    1,    // M   AUG
+    2,    // N   AAU, AAC
+    0,    // O
+    4,    // P   CCU, CCC, CCA, CGG
+    2,    // Q   CAA, CAG
+    6,    // R   CGU, CGC, CGA, CGG, AGA, AGG
+    6,    // S   UCU, UCC, UCA, UCG, AGU, AGC
+    4,    // T   ACU, ACC, ACA, ACG
+    0,    // U
+    4,    // V   GUU, GUC, GUA, GUG
+    1,    // W   UGG
+    0,    // X
+    2,    // Y   UAU, UAC
+    0,    // Z
+};
+
+pub const stopCodons: usize = 3;
+
+/// Amino acid monoisotopic mass table
+pub const aacMassTable: [26]f64 = .{
+    71.03711 ,   // A
+    0.0,         // B
+    103.00919,   // C
+    115.02694,   // D
+    129.04259,   // E
+    147.06841,   // F
+    57.02146,    // G
+    137.05891,   // H
+    113.08406,   // I
+    0.0,         // J
+    128.09496,   // K
+    113.08406,   // L
+    131.04049,   // M
+    114.04293,   // N
+    0.0,         // O
+    97.05276,    // P
+    128.05858,   // Q
+    156.10111,   // R
+    87.03203,    // S
+    101.04768,   // T
+    0.0,         // U
+    99.06841,    // V
+    186.07931,   // W
+    0.0,         // X
+    163.06333,   // Y
+    0.0,         // Z
+};
+
 const rnaCodonTable = [_][]const u8{
     "UUU", "F",      "CUU", "L",      "AUU", "I",      "GUU", "V",
     "UUC", "F",      "CUC", "L",      "AUC", "I",      "GUC", "V",
@@ -81,11 +145,33 @@ pub fn makeRNACodonMap(allocator: Allocator) !Map(u8) {
 
     while (i < rnaCodonTable.len - 1) : (i += 2) {
         const rna = rnaCodonTable[i];
-        const pro = rnaCodonTable[i+1][0];
-        try map.put(rna,pro);
+        const aac = rnaCodonTable[i+1][0];
+        try map.put(rna,aac);
     }
 
     return map;
+}
+
+/// For each amino acid, determine how many codons may encode it
+pub fn makeAminoAcidTable() void {
+    var table = [_]u8{0} ** 26;
+    var i: usize = 0;
+
+    while (i < rnaCodonTable.len - 1) : (i += 2) {
+        // const rna = rnaCodonTable[i];
+        const aac = rnaCodonTable[i+1][0];
+        if (aac >= 'A' and aac <= 'Z') {
+            table[aac - 'A'] += 1;
+        }
+    }
+
+    std.debug.print("pub const aacTable: [26]u8 = .{{\n", .{});
+    i = 0;
+    while (i < table.len) : (i += 1) {
+        const c: u8 = @truncate(i + 'A');
+        std.debug.print("    {d},    // {c}\n", .{table[i], c});
+    }
+    std.debug.print("}};\n", .{});
 }
 
 /// Check if the sequence is valid (only contains A, C, G, T).
@@ -297,6 +383,19 @@ pub fn consensus(allocator: Allocator, prof: [][]u8) ![]u8 {
     }
 
     return cons;
+}
+
+/// Return the total mass (in Da) of a protein string
+pub fn proteinMass(pro: []const u8) f64 {
+    var mass: f64 = 0.0;
+
+    for (pro) |a| {
+        if (a >= 'A' and a <= 'Z') {
+            mass += aacMassTable[a - 'A'];
+        }
+    }
+
+    return mass;
 }
 
 // Support for FASTA files

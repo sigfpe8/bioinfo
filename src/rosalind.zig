@@ -5,6 +5,8 @@ const std = @import("std");
 const bio = @import("root.zig");
 const Fasta = bio.Fasta;
 const binomial = bio.binomial;
+const aacTable = bio.aacTable;
+const stopCodons = bio.stopCodons;
 
 const Io = std.Io;
 const File = Io.File;
@@ -40,7 +42,16 @@ pub fn main(init: std.process.Init) !void {
     // try problemREVP();
     // try problemCONS();
     // try problemMPRT();
-    try problemGRPH();
+    // try problemGRPH();
+    // try problemMRNA();
+    // try problemFIBD();
+    try problemPRTM();
+}
+
+/// Simple print() to stdout ignoring errors
+fn print(comptime fmt: []const u8, args: anytype) void {
+    stdout.print(fmt, args) catch {};
+    stdout.flush() catch {};
 }
 
 // Each problemXYZ() function below gathers the necessary data for
@@ -170,6 +181,31 @@ fn problemGRPH() !void {
     defer bio.freeFastaArray(gpa, seqs);
 
     solveGRPH(seqs, 3);
+}
+
+fn problemMRNA() !void {
+    const fname = "datasets/rosalind_mrna.txt";
+    const prot = try bio.readLine(io, gpa, fname);
+    defer gpa.free(prot);
+
+    solveMRNA(prot);
+}
+
+fn problemFIBD() !void {
+    const fname = "datasets/rosalind_fibd.txt";
+    var ints = bio.IntsReader(usize).init(gpa);
+    defer ints.deinit();
+    try ints.readFile(io, fname);
+
+    solveFIBD(ints.items[0], ints.items[1]);
+}
+
+fn problemPRTM() !void {
+    const fname = "datasets/rosalind_prtm.txt";
+    const prot = try bio.readLine(io, gpa, fname);
+    defer gpa.free(prot);
+
+    solvePRTM(prot);
 }
 
 // ---------------------------------------------------------
@@ -411,11 +447,57 @@ fn solveGRPH(seqs: []Fasta, k: usize) void {
             }
         }
     }
-    stdout.flush() catch {};
 }
 
-fn print(comptime fmt: []const u8, args: anytype) void {
-    stdout.print(fmt, args) catch |err| {
-        std.debug.print("Error {} writing to stdout\n", .{err});
-    };
+/// MRNA - Inferring mRNA from Protein
+fn solveMRNA(prot: []const u8) void {
+    // Assume the protein string contains at least one amino acid
+    // Assume the string contains only letters A-Z, no stop "." at the end
+    assert(prot.len > 0);
+    var count: usize = stopCodons;   // 3
+
+    for (prot) |a| {
+        count = (count * aacTable[a - 'A']) % 1_000_000;
+    }
+
+    print("{d}\n", .{count});
+}
+
+/// FIBD - Mortal Fibonacci Rabbits
+fn solveFIBD(n: usize, m: usize) void {
+    assert(m <= 20);
+    print("n={d}, m={d}\n", .{n,m});
+    var age = [_]usize{ 0 } ** 20;
+    age[0] = 1;
+    var i: usize = 1;
+    while (i < n) : (i += 1) {
+        // Each generation at least 1 month old
+        // generates new children
+        const nb = allGens(age[1..m]);
+        // Each generation gets 1 month older
+        // Oldest generation dies (m-month old)
+        var j: usize = m - 1;
+        while (j > 0) : (j -= 1) {
+            age[j] = age[j - 1];
+        }
+        // Newborns
+        age[0] = nb;
+    }
+    const count = allGens(age[0..m]);
+    print("{d}\n", .{count});
+ }
+
+// Sums number of rabitts for all generations
+fn allGens(age: []usize) usize {
+    var count: usize = 0;
+    for (age) |c| {
+        count += c;
+    }
+    return count;
+}
+
+/// PRTM - Calculating Protein Mass
+fn solvePRTM(pro: []const u8) void {
+    const mass = bio.proteinMass(pro);
+    print("{d:.3}\n", .{mass});
 }

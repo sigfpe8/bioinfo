@@ -11,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
     const io = init.io;
 
-    const fname = "datasets/test_grph.txt";
+    const fname = "datasets/sample_grph.txt";
     const seqs = try bio.readFastaFile(io, gpa, fname);
     defer bio.freeFastaArray(gpa, seqs);
 
