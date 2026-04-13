@@ -39,13 +39,14 @@ pub fn main(init: std.process.Init) !void {
     // try problemIPRB();
     // try problemSUBS();
     // try problemPROT();
+    try problemPROT2();
     // try problemREVP();
     // try problemCONS();
     // try problemMPRT();
     // try problemGRPH();
     // try problemMRNA();
     // try problemFIBD();
-    try problemPRTM();
+    // try problemPRTM();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -146,6 +147,14 @@ fn problemPROT() !void {
     defer bio.freeLines(gpa, lines);
 
     try solvePROT(lines[0]);
+}
+
+fn problemPROT2() !void {
+    const fname = "datasets/sample_prot.txt";
+    const lines = try bio.readLines(io, gpa, fname);
+    defer bio.freeLines(gpa, lines);
+
+    try solvePROT2(lines[0]);
 }
 
 fn problemREVP() !void {
@@ -344,8 +353,8 @@ fn solvePROT(rna: []const u8) !void {
     var i: usize = 0;
     while (i < rna.len) : (i += 3) {
         const cod = rna[i..i+3];        // The 3-letter codon
-        const pro = map.get(cod).?;     // Corresponding protein
-        prot[i / 3] = pro;
+        const aac = map.get(cod).?;     // Corresponding amino acid
+        prot[i / 3] = aac;
     }
 
     if (prot[prot.len-1] == '.') {
@@ -353,6 +362,13 @@ fn solvePROT(rna: []const u8) !void {
     } else {
         print("{s}\n", .{prot}); 
     }
+}
+
+fn solvePROT2(rna: []const u8) !void {
+    const prot = try bio.translate(gpa, rna);
+    defer gpa.free(prot);
+    
+    print("{s}\n", .{prot});
 }
 
 /// REVP - Locating Restriction Sites

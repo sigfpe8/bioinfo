@@ -120,6 +120,27 @@ pub const aacMassTable: [26]f64 = .{
     0.0,         // Z
 };
 
+const CodonMap = std.StaticStringMap(u8);
+
+const codonMap = CodonMap.initComptime(.{
+    .{"UUU", 'F'},    .{"CUU", 'L'},    .{"AUU", 'I'},    .{"GUU", 'V'},
+    .{"UUC", 'F'},    .{"CUC", 'L'},    .{"AUC", 'I'},    .{"GUC", 'V'},
+    .{"UUA", 'L'},    .{"CUA", 'L'},    .{"AUA", 'I'},    .{"GUA", 'V'},
+    .{"UUG", 'L'},    .{"CUG", 'L'},    .{"AUG", 'M'},    .{"GUG", 'V'},
+    .{"UCU", 'S'},    .{"CCU", 'P'},    .{"ACU", 'T'},    .{"GCU", 'A'},
+    .{"UCC", 'S'},    .{"CCC", 'P'},    .{"ACC", 'T'},    .{"GCC", 'A'},
+    .{"UCA", 'S'},    .{"CCA", 'P'},    .{"ACA", 'T'},    .{"GCA", 'A'},
+    .{"UCG", 'S'},    .{"CCG", 'P'},    .{"ACG", 'T'},    .{"GCG", 'A'},
+    .{"UAU", 'Y'},    .{"CAU", 'H'},    .{"AAU", 'N'},    .{"GAU", 'D'},
+    .{"UAC", 'Y'},    .{"CAC", 'H'},    .{"AAC", 'N'},    .{"GAC", 'D'},
+    .{"UAA", '.'},    .{"CAA", 'Q'},    .{"AAA", 'K'},    .{"GAA", 'E'},
+    .{"UAG", '.'},    .{"CAG", 'Q'},    .{"AAG", 'K'},    .{"GAG", 'E'},
+    .{"UGU", 'C'},    .{"CGU", 'R'},    .{"AGU", 'S'},    .{"GGU", 'G'},
+    .{"UGC", 'C'},    .{"CGC", 'R'},    .{"AGC", 'S'},    .{"GGC", 'G'},
+    .{"UGA", '.'},    .{"CGA", 'R'},    .{"AGA", 'R'},    .{"GGA", 'G'},
+    .{"UGG", 'W'},    .{"CGG", 'R'},    .{"AGG", 'R'},    .{"GGG", 'G'}, 
+});
+
 const rnaCodonTable = [_][]const u8{
     "UUU", "F",      "CUU", "L",      "AUU", "I",      "GUU", "V",
     "UUC", "F",      "CUC", "L",      "AUC", "I",      "GUC", "V",
@@ -185,7 +206,7 @@ pub fn validSeq(seq: []const u8) bool {
 }
 
 /// Generate a random DNA sequence of the given length.
-/// The caller is responsible for freeing the memory of the returned slice.
+/// Caller owns the returned string.
 pub fn randomSeq(allocator: Allocator, len: usize) ![]u8 {
     const seq = try allocator.alloc(u8, len);
     var prng = std.Random.DefaultPrng.init(0); 
@@ -235,6 +256,7 @@ pub fn gcContent(seq: []const u8) f64 {
 
 /// Return the complement of the given DNA sequence.
 /// The caller is responsible for freeing the memory of the returned slice.
+/// Caller owns the returned string.
 pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
     var comp = try allocator.alloc(u8, seq.len);
     for (seq, 0..) |c, i| {
@@ -245,6 +267,7 @@ pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
 
 /// Return the reverse complement of the given DNA sequence.
 /// The caller is responsible for freeing the memory of the returned slice.
+/// Caller owns the returned string.
 pub fn revComplement(allocator: Allocator, seq: []const u8) ![]u8 {
     const len = seq.len - 1;
     var comp = try allocator.alloc(u8, seq.len);
@@ -276,12 +299,37 @@ pub fn isRevPalindrome(seq: []const u8) bool {
 
 /// Transcribe the given DNA sequence to RNA (replace T with U).
 /// The caller is responsible for freeing the memory of the returned slice.
+/// Caller owns the returned string.
 pub fn transcribe(allocator: Allocator, seq: []const u8) ![]u8 {
     var rna = try allocator.alloc(u8, seq.len);
     for (seq, 0..) |c, i| {
         rna[i] = if (c == 'T') 'U' else c;
     }
     return rna;
+}
+
+/// Translate an RNA sequence into an amino acid sequence (a protein).
+/// If the last codon encodes a stop, remove it from the output.
+/// Caller owns the returned string.
+pub fn translate(allocator: Allocator, rna: []const u8) ![]u8 {
+    assert(rna.len % 3 == 0);
+    var len = rna.len;
+
+    // If the input sequence ends in a 'stop' codon, ignore it
+    if (codonMap.get(rna[len-3..]) == '.') {
+        len -= 3;
+    }
+
+    var prot = try allocator.alloc(u8, len / 3);
+
+    var i: usize = 0;
+    while (i < len) : (i += 3) {
+        const cod = rna[i..i+3];            // The 3-letter codon
+        const aac = codonMap.get(cod).?;    // Corresponding amino acid
+        prot[i / 3] = aac;
+    }
+
+    return prot;
 }
 
 /// Return the Hamming distance between two sequences, that is,
