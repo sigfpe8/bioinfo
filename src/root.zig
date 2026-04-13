@@ -480,6 +480,9 @@ pub fn freeFastaArray(allocator: Allocator, array: []Fasta) void {
     allocator.free(array);
 }
 
+/// Reads a file in FASTA format and returns an array of Fasta structures.
+/// Joins all the lines from the same sequence into a single string.
+/// Caller must call freeFastaArray() to dispose of the array.
 pub fn readFastaFile(io: Io, allocator: Allocator, fname: []const u8) ![]Fasta {
     const file = try Io.Dir.cwd().openFile(io, fname, .{ .mode = .read_only });
     defer file.close(io);
@@ -489,13 +492,17 @@ pub fn readFastaFile(io: Io, allocator: Allocator, fname: []const u8) ![]Fasta {
     return try readFasta(allocator, &file_reader.interface);
 }
 
+/// Reads a buffer in FASTA format and returns an array of Fasta structures.
+/// Joins all the lines from the same sequence into a single string.
+/// Caller must call freeFastaArray() to dispose of the array.
 pub fn readFastaBuffer(allocator: Allocator, buffer: []const u8) ![]Fasta {
     var reader: Reader = .fixed(buffer);
 
     return try readFasta(allocator, &reader);
 }
 
-pub fn readFasta(allocator: Allocator, r: *Reader) ![]Fasta {
+/// Main code for reading FASTA sequences
+fn readFasta(allocator: Allocator, r: *Reader) ![]Fasta {
     var list: std.ArrayList(Fasta) = .empty;
     var seqId: ?[]u8 = null;
     var seq: std.ArrayList(u8) = .empty;
@@ -536,6 +543,70 @@ pub fn readFasta(allocator: Allocator, r: *Reader) ![]Fasta {
     return list.toOwnedSlice(allocator);
 }
 
+/// Similar to readFastaFile(), but ignores the IDs.
+/// Returns an array of lines like readLines().
+/// Caller must call freeLines() to dispose of the array.
+pub fn readFastaNoIdFile(io: Io, allocator: Allocator, fname: []const u8) ![][]u8 {
+    const file = try Io.Dir.cwd().openFile(io, fname, .{ .mode = .read_only });
+    defer file.close(io);
+    var buffer: [1024]u8 = undefined;
+    var file_reader: Io.File.Reader = .init(file, io, &buffer);
+
+    return try readFastaNoId(allocator, &file_reader.interface);
+}
+
+/// Similar to readFastaBuffer(), but ignores the IDs.
+/// Returns an array of lines like readLines().
+/// Caller must call freeLines() to dispose of the array.
+pub fn readFastaNoIdBuffer(allocator: Allocator, buffer: []const u8) ![][]u8 {
+    var reader: Reader = .fixed(buffer);
+
+    return try readFastaNoId(allocator, &reader);
+}
+
+/// Similar to readFasta(), but ignores the IDs.
+/// Returns an array of lines like readLines().
+/// Caller must call freeLines() to dispose of the array.
+fn readFastaNoId(allocator: Allocator, r: *Reader) ![][]u8 {
+    var lines: std.ArrayList([]u8) = .empty;
+    var seq: std.ArrayList(u8) = .empty;
+    var pend: bool = false;     // True if there's a sequence pending
+    var line: []u8 = undefined;
+
+    while (true) {
+        line = r.takeDelimiterInclusive('\n') catch |err| {
+            switch (err) {
+                error.EndOfStream => break,
+                else => return err,
+            }
+        };
+        if (line.len == 1) {    // Ignore empty lines (just \n) 
+            continue;
+        }
+        if (line[0] == '>') {   // New sequence ID
+            if (pend) { // If there's a previous sequence, store it
+                // Store previous sequence
+                line = try seq.toOwnedSlice(allocator);
+                try lines.append(allocator, line);
+            }
+            // Mark new sequence ID
+            pend = true;
+            seq = .empty;
+        } else {
+            // Concatenate lines in the same sequence
+            try seq.appendSlice(allocator, line[0..line.len - 1]); // Trim \n
+        }
+    }
+
+    // Include last sequence
+    if (pend) {
+        line = try seq.toOwnedSlice(allocator);
+        try lines.append(allocator, line);
+    }
+
+    return lines.toOwnedSlice(allocator);
+}
+
 const maxFastaSeqLine = 80;
 
 pub fn writeFastaFile(io: Io, seqs: []const Fasta, fname: []const u8) !void {
@@ -547,7 +618,7 @@ pub fn writeFastaFile(io: Io, seqs: []const Fasta, fname: []const u8) !void {
     return try writeFasta(seqs, &file_writer.interface);
 }
 
-pub fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
+fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
     // >SeqID
     // seq
     for (seqs) |s| {

@@ -12,27 +12,27 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
 
     const fname = "datasets/sample_grph.txt";
-    const seqs = try bio.readFastaFile(io, gpa, fname);
-    defer bio.freeFastaArray(gpa, seqs);
+    const seqs = try bio.readFastaNoIdFile(io, gpa, fname);
+    defer bio.freeLines(gpa, seqs);
 
     print("Sequences in file '{s}':\n", .{fname});
     for (seqs) |s| {
-        print("ID:  {s}\nSeq: {s}\n\n", .{s.seqID, s.seq});
+        print("Seq: {s}\n", .{s});
     }
 
-    var motif = bio.Motif.init(gpa);
-    defer motif.deinit();
-    try motif.encode("ABC[DEF]G{HIJKL}");
-    // try motif.encode("A{GFDK}C");
-    const decod = try motif.decode();
-    defer gpa.free(decod);
-    print("Motif = {s}\n", .{decod});
-    const text = "ABCEGM";
-    print("Text  = {s}\n", .{text});
-    if (motif.match(text)) {
-        print("Success\n", .{});
-    } else {
-        print("Failure\n", .{});        
-    }
+    // var motif = bio.Motif.init(gpa);
+    // defer motif.deinit();
+    // try motif.encode("ABC[DEF]G{HIJKL}");
+    // // try motif.encode("A{GFDK}C");
+    // const decod = try motif.decode();
+    // defer gpa.free(decod);
+    // print("Motif = {s}\n", .{decod});
+    // const text = "ABCEGM";
+    // print("Text  = {s}\n", .{text});
+    // if (motif.match(text)) {
+    //     print("Success\n", .{});
+    // } else {
+    //     print("Failure\n", .{});        
+    // }
 }
 
