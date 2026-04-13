@@ -68,7 +68,7 @@ pub const aacTable: [26]u8 = .{
     2,    // F   UUU, FFF
     4,    // G   GGU, GGC, GGA, GGG
     2,    // H   CAU, CAC
-    3,    // I   AUU, AUC
+    3,    // I   AUU, AUC, AUA
     0,    // J
     2,    // K   AAA, AAG
     6,    // L   UUA, UUG, CUU, CUC, CUA, CUG
@@ -122,7 +122,7 @@ pub const aacMassTable: [26]f64 = .{
 
 const CodonMap = std.StaticStringMap(u8);
 
-const codonMap = CodonMap.initComptime(.{
+const rnaCodonMap = CodonMap.initComptime(.{
     .{"UUU", 'F'},    .{"CUU", 'L'},    .{"AUU", 'I'},    .{"GUU", 'V'},
     .{"UUC", 'F'},    .{"CUC", 'L'},    .{"AUC", 'I'},    .{"GUC", 'V'},
     .{"UUA", 'L'},    .{"CUA", 'L'},    .{"AUA", 'I'},    .{"GUA", 'V'},
@@ -139,6 +139,27 @@ const codonMap = CodonMap.initComptime(.{
     .{"UGC", 'C'},    .{"CGC", 'R'},    .{"AGC", 'S'},    .{"GGC", 'G'},
     .{"UGA", '.'},    .{"CGA", 'R'},    .{"AGA", 'R'},    .{"GGA", 'G'},
     .{"UGG", 'W'},    .{"CGG", 'R'},    .{"AGG", 'R'},    .{"GGG", 'G'}, 
+});
+
+/// Similar to codonMap{}, but includes the transciption T->U so that
+/// the translation to amino acids can be done in a single step.
+const dnaCodonMap = CodonMap.initComptime(.{
+    .{"TTT", 'F'},    .{"CTT", 'L'},    .{"ATT", 'I'},    .{"GTT", 'V'},
+    .{"TTC", 'F'},    .{"CTC", 'L'},    .{"ATC", 'I'},    .{"GTC", 'V'},
+    .{"TTA", 'L'},    .{"CTA", 'L'},    .{"ATA", 'I'},    .{"GTA", 'V'},
+    .{"TTG", 'L'},    .{"CTG", 'L'},    .{"ATG", 'M'},    .{"GTG", 'V'},
+    .{"TCT", 'S'},    .{"CCT", 'P'},    .{"ACT", 'T'},    .{"GCT", 'A'},
+    .{"TCC", 'S'},    .{"CCC", 'P'},    .{"ACC", 'T'},    .{"GCC", 'A'},
+    .{"TCA", 'S'},    .{"CCA", 'P'},    .{"ACA", 'T'},    .{"GCA", 'A'},
+    .{"TCG", 'S'},    .{"CCG", 'P'},    .{"ACG", 'T'},    .{"GCG", 'A'},
+    .{"TAT", 'Y'},    .{"CAT", 'H'},    .{"AAT", 'N'},    .{"GAT", 'D'},
+    .{"TAC", 'Y'},    .{"CAC", 'H'},    .{"AAC", 'N'},    .{"GAC", 'D'},
+    .{"TAA", '.'},    .{"CAA", 'Q'},    .{"AAA", 'K'},    .{"GAA", 'E'},
+    .{"TAG", '.'},    .{"CAG", 'Q'},    .{"AAG", 'K'},    .{"GAG", 'E'},
+    .{"TGT", 'C'},    .{"CGT", 'R'},    .{"AGT", 'S'},    .{"GGT", 'G'},
+    .{"TGC", 'C'},    .{"CGC", 'R'},    .{"AGC", 'S'},    .{"GGC", 'G'},
+    .{"TGA", '.'},    .{"CGA", 'R'},    .{"AGA", 'R'},    .{"GGA", 'G'},
+    .{"TGG", 'W'},    .{"CGG", 'R'},    .{"AGG", 'R'},    .{"GGG", 'G'}, 
 });
 
 const rnaCodonTable = [_][]const u8{
@@ -316,7 +337,7 @@ pub fn translate(allocator: Allocator, rna: []const u8) ![]u8 {
     var len = rna.len;
 
     // If the input sequence ends in a 'stop' codon, ignore it
-    if (codonMap.get(rna[len-3..]) == '.') {
+    if (rnaCodonMap.get(rna[len-3..]) == '.') {
         len -= 3;
     }
 
@@ -324,13 +345,72 @@ pub fn translate(allocator: Allocator, rna: []const u8) ![]u8 {
 
     var i: usize = 0;
     while (i < len) : (i += 3) {
-        const cod = rna[i..i+3];            // The 3-letter codon
-        const aac = codonMap.get(cod).?;    // Corresponding amino acid
+        const cod = rna[i..i+3];             // The 3-letter codon
+        const aac = rnaCodonMap.get(cod).?;  // Corresponding amino acid
         prot[i / 3] = aac;
     }
 
     return prot;
 }
+
+/// Translate an DNA sequence into an amino acid sequence (a protein).
+/// Similar to translate() but goes directly from DNA to protein.
+/// Caller owns the returned string.
+pub fn translateDNA(allocator: Allocator, dna: []const u8) ![]u8 {
+    assert(dna.len % 3 == 0);
+    var len = dna.len;
+
+    // If the input sequence ends in a 'stop' codon, ignore it
+    if (dnaCodonMap.get(dna[len-3..]) == '.') {
+        len -= 3;
+    }
+
+    var prot = try allocator.alloc(u8, len / 3);
+
+    var i: usize = 0;
+    while (i < len) : (i += 3) {
+        const cod = dna[i..i+3];             // The 3-letter codon
+        const aac = dnaCodonMap.get(cod).?;  // Corresponding amino acid
+        prot[i / 3] = aac;
+    }
+
+    return prot;
+}
+
+/// Given a DNA sequence, remove all the introns in it and then translate it
+/// to the encoded sequence of amino acids (a protein).
+/// Caller owns the returned string.
+pub fn spliceDNA(allocator: Allocator, seq: []const u8, introns: [][]u8) ![]u8 {
+    var buffer = try allocator.dupe(u8, seq);   // Work buffer
+    defer allocator.free(buffer);
+    var dna = buffer;
+
+    for (introns) |intron| {
+        const len = cutIntron(dna, intron);
+        dna = buffer[0..len];
+    }
+
+    return translateDNA(allocator, dna);
+}
+
+/// Cut off all occurrences of the intron in this sequence.
+/// Return the length of the shortened input sequence.
+/// Cuts are made in place.
+fn cutIntron(buf: []u8, intron: []u8) usize {
+    var base: usize = 0;
+    var len: usize = buf.len;
+
+    while (std.mem.find(u8, buf[base..], intron)) |pos| {
+        const end = pos + intron.len;                // Where this intron ends
+        const lft = len - end;                       // How many nucleotides left after the intron
+        @memmove(buf[pos..pos+lft], buf[end..len]);  // Move everything after the intron
+        len -= intron.len;
+        base = pos;
+    }
+
+    return len;
+}
+
 
 /// Return the Hamming distance between two sequences, that is,
 /// the number of corresponding nucleotides that are different.

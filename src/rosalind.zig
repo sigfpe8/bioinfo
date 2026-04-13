@@ -39,7 +39,7 @@ pub fn main(init: std.process.Init) !void {
     // try problemIPRB();
     // try problemSUBS();
     // try problemPROT();
-    try problemPROT2();
+    // try problemPROT2();
     // try problemREVP();
     // try problemCONS();
     // try problemMPRT();
@@ -47,6 +47,7 @@ pub fn main(init: std.process.Init) !void {
     // try problemMRNA();
     // try problemFIBD();
     // try problemPRTM();
+    try problemSPLC();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -215,6 +216,14 @@ fn problemPRTM() !void {
     defer gpa.free(prot);
 
     solvePRTM(prot);
+}
+
+fn problemSPLC() !void {
+    const fname = "datasets/rosalind_splc.txt";
+    const seqs = try bio.readFastaNoIdFile(io, gpa, fname);
+    defer bio.freeLines(gpa, seqs);
+
+    try solveSPLC(seqs[0], seqs[1..]);
 }
 
 // ---------------------------------------------------------
@@ -516,4 +525,12 @@ fn allGens(age: []usize) usize {
 fn solvePRTM(pro: []const u8) void {
     const mass = bio.proteinMass(pro);
     print("{d:.3}\n", .{mass});
+}
+
+/// SPLC - RNA Splicing
+fn solveSPLC(dna: []const u8, introns: [][]u8) !void {
+    const prot = try bio.spliceDNA(gpa, dna, introns);
+    defer gpa.free(prot);
+
+    print("{s}\n", .{prot});
 }
