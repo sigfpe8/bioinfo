@@ -374,7 +374,7 @@ fn solvePROT(rna: []const u8) !void {
 }
 
 fn solvePROT2(rna: []const u8) !void {
-    const prot = try bio.translate(gpa, rna);
+    const prot = try bio.translateRNA(gpa, rna);
     defer gpa.free(prot);
     
     print("{s}\n", .{prot});

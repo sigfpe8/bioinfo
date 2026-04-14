@@ -1,13 +1,26 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
 
+const fas = @import("fasta.zig");
+pub const Fasta = fas.Fasta;
+pub const randomFastaArray    = fas.randomFastaArray;
+pub const freeFastaArray      = fas.freeFastaArray;
+pub const readFastaFile       = fas.readFastaFile;
+pub const readFastaBuffer     = fas.readFastaBuffer;
+pub const readFastaNoIdFile   = fas.readFastaNoIdFile;
+pub const readFastaNoIdBuffer = fas.readFastaNoIdBuffer;
+pub const writeFastaFile      = fas.writeFastaFile;
+pub const fastaToSequences    = fas.fastaToSequences;
+pub const getProtein          = fas.getProtein;
+
+pub const readLine   = fas.readLine;
+pub const readLines  = fas.readLines;
+pub const freeLines  = fas.freeLines;
+pub const printLines = fas.printLines;
+pub const IntsReader = fas.IntsReader;
+
 const utl = @import("utils.zig");
 pub const binomial = utl.binomial;
-pub const readLine = utl.readLine;
-pub const readLines = utl.readLines;
-pub const freeLines = utl.freeLines;
-pub const printLines = utl.printLines;
-pub const IntsReader = utl.IntsReader;
 pub const pascalsTriang = utl.pascalsTriang;
 pub const PermIterator = utl.PermIterator;
 
@@ -24,7 +37,6 @@ const Map = std.StringHashMap;
 pub const BioError = error{
     DifferentLengths,
     TooManySequences,
-    FailedToLoadProtein,
 };
 
 /// Map one nucleotide to its complement
@@ -276,7 +288,6 @@ pub fn gcContent(seq: []const u8) f64 {
 }
 
 /// Return the complement of the given DNA sequence.
-/// The caller is responsible for freeing the memory of the returned slice.
 /// Caller owns the returned string.
 pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
     var comp = try allocator.alloc(u8, seq.len);
@@ -287,7 +298,6 @@ pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
 }
 
 /// Return the reverse complement of the given DNA sequence.
-/// The caller is responsible for freeing the memory of the returned slice.
 /// Caller owns the returned string.
 pub fn revComplement(allocator: Allocator, seq: []const u8) ![]u8 {
     const len = seq.len - 1;
@@ -332,7 +342,7 @@ pub fn transcribe(allocator: Allocator, seq: []const u8) ![]u8 {
 /// Translate an RNA sequence into an amino acid sequence (a protein).
 /// If the last codon encodes a stop, remove it from the output.
 /// Caller owns the returned string.
-pub fn translate(allocator: Allocator, rna: []const u8) ![]u8 {
+pub fn translateRNA(allocator: Allocator, rna: []const u8) ![]u8 {
     assert(rna.len % 3 == 0);
     var len = rna.len;
 
@@ -354,7 +364,7 @@ pub fn translate(allocator: Allocator, rna: []const u8) ![]u8 {
 }
 
 /// Translate an DNA sequence into an amino acid sequence (a protein).
-/// Similar to translate() but goes directly from DNA to protein.
+/// Similar to translateRNA() but goes directly from DNA to protein.
 /// Caller owns the returned string.
 pub fn translateDNA(allocator: Allocator, dna: []const u8) ![]u8 {
     assert(dna.len % 3 == 0);
@@ -524,282 +534,6 @@ pub fn proteinMass(pro: []const u8) f64 {
     }
 
     return mass;
-}
-
-// Support for FASTA files
-
-// This struct represents a single sequence in a FASTA file.
-// A file can contain multiple sequences.
-pub const Fasta = struct {
-    seqID: []u8,
-    seq: []u8,
-};
-
-pub fn randomFastaArray(allocator: Allocator, n: usize) ![]Fasta {
-    var prng = std.Random.DefaultPrng.init(0); 
-    const rand = prng.random();
-
-    var list: std.ArrayList(Fasta) = .empty;
-    var i: usize = 1;
-
-    while (i <= n) : (i += 1) {
-        const seqId = try std.fmt.allocPrint(allocator, "Sequence {d}", .{i});
-        const len = rand.uintLessThan(usize, 100) + 50;
-        const seq = try randomSeq(allocator, len);
-        try list.append(allocator, .{ .seqID = seqId, .seq = seq });
-    }
-
-    return list.toOwnedSlice(allocator);
-}
-
-pub fn freeFastaArray(allocator: Allocator, array: []Fasta) void {
-    for (array) |s| {
-        allocator.free(s.seqID);
-        allocator.free(s.seq);
-    }
-    allocator.free(array);
-}
-
-/// Reads a file in FASTA format and returns an array of Fasta structures.
-/// Joins all the lines from the same sequence into a single string.
-/// Caller must call freeFastaArray() to dispose of the array.
-pub fn readFastaFile(io: Io, allocator: Allocator, fname: []const u8) ![]Fasta {
-    const file = try Io.Dir.cwd().openFile(io, fname, .{ .mode = .read_only });
-    defer file.close(io);
-    var buffer: [1024]u8 = undefined;
-    var file_reader: Io.File.Reader = .init(file, io, &buffer);
-
-    return try readFasta(allocator, &file_reader.interface);
-}
-
-/// Reads a buffer in FASTA format and returns an array of Fasta structures.
-/// Joins all the lines from the same sequence into a single string.
-/// Caller must call freeFastaArray() to dispose of the array.
-pub fn readFastaBuffer(allocator: Allocator, buffer: []const u8) ![]Fasta {
-    var reader: Reader = .fixed(buffer);
-
-    return try readFasta(allocator, &reader);
-}
-
-/// Main code for reading FASTA sequences
-fn readFasta(allocator: Allocator, r: *Reader) ![]Fasta {
-    var list: std.ArrayList(Fasta) = .empty;
-    var seqId: ?[]u8 = null;
-    var seq: std.ArrayList(u8) = .empty;
-
-    while (true) {
-        const line = r.takeDelimiterInclusive('\n') catch |err| {
-            switch (err) {
-                error.EndOfStream => break,
-                else => return err,
-            }
-        };
-        if (line.len == 1) {    // Ignore empty lines (just \n) 
-            continue;
-        }
-        if (line[0] == '>') {   // New sequence ID
-            if (seqId) |id| { // If there's a previous sequence, store it
-                // Store previous sequence
-                try list.append(allocator, .{
-                            .seqID = id,
-                            .seq = try seq.toOwnedSlice(allocator) });
-            }
-            // Mark new sequence ID
-            seqId = try allocator.dupe(u8, line[1..line.len - 1]);
-            seq = .empty;
-        } else {
-            // Concatenate lines in the same sequence
-            try seq.appendSlice(allocator, line[0..line.len - 1]); // Trim \n
-        }
-    }
-
-    // Include last sequence
-    if (seqId) |id| {
-        try list.append(allocator, .{
-                    .seqID = id,
-                    .seq = try seq.toOwnedSlice(allocator) });
-    }
-
-    return list.toOwnedSlice(allocator);
-}
-
-/// Similar to readFastaFile(), but ignores the IDs.
-/// Returns an array of lines like readLines().
-/// Caller must call freeLines() to dispose of the array.
-pub fn readFastaNoIdFile(io: Io, allocator: Allocator, fname: []const u8) ![][]u8 {
-    const file = try Io.Dir.cwd().openFile(io, fname, .{ .mode = .read_only });
-    defer file.close(io);
-    var buffer: [1024]u8 = undefined;
-    var file_reader: Io.File.Reader = .init(file, io, &buffer);
-
-    return try readFastaNoId(allocator, &file_reader.interface);
-}
-
-/// Similar to readFastaBuffer(), but ignores the IDs.
-/// Returns an array of lines like readLines().
-/// Caller must call freeLines() to dispose of the array.
-pub fn readFastaNoIdBuffer(allocator: Allocator, buffer: []const u8) ![][]u8 {
-    var reader: Reader = .fixed(buffer);
-
-    return try readFastaNoId(allocator, &reader);
-}
-
-/// Similar to readFasta(), but ignores the IDs.
-/// Returns an array of lines like readLines().
-/// Caller must call freeLines() to dispose of the array.
-fn readFastaNoId(allocator: Allocator, r: *Reader) ![][]u8 {
-    var lines: std.ArrayList([]u8) = .empty;
-    var seq: std.ArrayList(u8) = .empty;
-    var pend: bool = false;     // True if there's a sequence pending
-    var line: []u8 = undefined;
-
-    while (true) {
-        line = r.takeDelimiterInclusive('\n') catch |err| {
-            switch (err) {
-                error.EndOfStream => break,
-                else => return err,
-            }
-        };
-        if (line.len == 1) {    // Ignore empty lines (just \n) 
-            continue;
-        }
-        if (line[0] == '>') {   // New sequence ID
-            if (pend) { // If there's a previous sequence, store it
-                // Store previous sequence
-                line = try seq.toOwnedSlice(allocator);
-                try lines.append(allocator, line);
-            }
-            // Mark new sequence ID
-            pend = true;
-            seq = .empty;
-        } else {
-            // Concatenate lines in the same sequence
-            try seq.appendSlice(allocator, line[0..line.len - 1]); // Trim \n
-        }
-    }
-
-    // Include last sequence
-    if (pend) {
-        line = try seq.toOwnedSlice(allocator);
-        try lines.append(allocator, line);
-    }
-
-    return lines.toOwnedSlice(allocator);
-}
-
-const maxFastaSeqLine = 80;
-
-pub fn writeFastaFile(io: Io, seqs: []const Fasta, fname: []const u8) !void {
-    const file = try Io.Dir.cwd().createFile(io, fname, .{});
-    defer file.close(io);
-    var buffer: [1024]u8 = undefined;
-    var file_writer: Io.File.Writer = .init(file, io, &buffer);
-
-    return try writeFasta(seqs, &file_writer.interface);
-}
-
-fn writeFasta(seqs: []const Fasta, w: *Writer) !void {
-    // >SeqID
-    // seq
-    for (seqs) |s| {
-        try w.print(">{s}\n", .{s.seqID});
-        var p = s.seq;
-        // Print sequence in chunks of maxFastaSeqLine characters
-        while (p.len > 0) {
-            const l = @min(p.len, maxFastaSeqLine);
-            try w.print("{s}\n", .{p[0..l]});
-            p = p[l..]; // Next chunk
-        }
-    }
-    try w.flush();
-}
-
-/// Duplicate an array of Fasta sequences as a simple array of sequences
-pub fn fastaToSequences(allocator: Allocator, seqs: []Fasta) ![][]u8 {
-    var lines = try allocator.alloc([]u8, seqs.len);
-
-    for (seqs, 0..) |seq, i| {
-        lines[i] = try allocator.dupe(u8, seq.seq);
-    }
-
-    return lines;
-}
-
-/// Get a protein fasta file
-/// First try to get it from the cache (datasets/uniprot).
-/// If not already there, fetch it from the site uniprot.org and save it in the cache.
-pub fn getProtein(io: Io, gpa: Allocator, prot_name: []const u8) ![]Fasta {
-    const fname = try std.fmt.allocPrint(gpa, "datasets/uniprot/{s}.fasta", .{prot_name});
-    defer gpa.free(fname);
-
-    var fasta: []Fasta = undefined;
-
-    fasta = readFastaFile(io, gpa, fname) catch not_cached: {
-        // Looks like this protein is not cached; fetch it from the web
-        const prot = fetchProtein(io, gpa, prot_name) catch not_fetched: {
-            // Fetch from the Web failed
-            // Try simplified name, say P22457 instead of P22457_FA7_BOVIN
-            if (std.mem.findScalar(u8, prot_name, '_')) |pos| {
-                const pro = try fetchProtein(io, gpa, prot_name[0..pos]);
-                break :not_fetched pro;
-            } else {
-                return BioError.FailedToLoadProtein;
-            }
-        };
-        defer gpa.free(prot);
-        // Save the file contents for future use
-        try cacheProtein(io, gpa, prot_name, prot);
-        const fetched = try readFastaBuffer(gpa, prot);
-        break :not_cached fetched;
-    };
-
-    return fasta;
-}
-
-/// Fetch a protein .fasta file from uniprot.org
-/// Return the contents of the file as a string so that it can be
-/// easily cached and then be used to generate the []Fasta array.
-pub fn fetchProtein(io: Io, gpa: Allocator, prot_name: []const u8) ![]u8 {
-    var client: std.http.Client = .{
-        .allocator = gpa,
-        .io = io,
-    };
-    defer client.deinit();
-
-    var result_body = std.Io.Writer.Allocating.init(gpa);
-    defer result_body.deinit();
-
-    const prot_site = "https://www.uniprot.org/uniprot/";
-    const url = try std.fmt.allocPrint(gpa,"{s}{s}.fasta", .{prot_site,prot_name});
-    defer gpa.free(url);
-
-    const response = try client.fetch(.{
-        .location = .{ .url = url },
-        .response_writer = &result_body.writer,
-    });
-
-    if (response.status.class() != .success) {
-        return BioError.FailedToLoadProtein;
-    }
-
-    return result_body.toOwnedSlice();
-}
-
-/// Save a just fetched protein in the cache directory.
-/// `prot` is the full contents of the fasta file as a string.
-fn cacheProtein(io: Io, gpa: Allocator, prot_name: []const u8, prot: []const u8) !void {
-    const fname = try std.fmt.allocPrint(gpa, "datasets/uniprot/{s}.fasta", .{prot_name});
-    defer gpa.free(fname);
-
-    const file = try Io.Dir.cwd().createFile(io, fname, .{});
-    defer file.close(io);
-
-    var buffer: [1024]u8 = undefined;
-    var file_writer: Io.File.Writer = .init(file, io, &buffer);
-    var writer = &file_writer.interface;
-
-    try writer.print("{s}\n", .{prot});
-    try writer.flush();
 }
 
 test "validSeq" {
