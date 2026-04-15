@@ -1,5 +1,7 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+pub const StringSet = std.BufSet;
+
 
 const fas = @import("fasta.zig");
 pub const Fasta = fas.Fasta;
@@ -297,6 +299,17 @@ pub fn complement(allocator: Allocator, seq: []const u8) ![]u8 {
     return comp;
 }
 
+/// Return the reverse of the given DNA sequence.
+/// Caller owns the returned string.
+pub fn reverse(allocator: Allocator, seq: []const u8) ![]u8 {
+    const len = seq.len - 1;
+    var rev = try allocator.alloc(u8, seq.len);
+    for (seq, 0..) |c, i| {
+        rev[len - i] = c;
+    }
+    return rev;
+}
+
 /// Return the reverse complement of the given DNA sequence.
 /// Caller owns the returned string.
 pub fn revComplement(allocator: Allocator, seq: []const u8) ![]u8 {
@@ -363,7 +376,7 @@ pub fn translateRNA(allocator: Allocator, rna: []const u8) ![]u8 {
     return prot;
 }
 
-/// Translate an DNA sequence into an amino acid sequence (a protein).
+/// Translate a DNA sequence into an amino acid sequence (a protein).
 /// Similar to translateRNA() but goes directly from DNA to protein.
 /// Caller owns the returned string.
 pub fn translateDNA(allocator: Allocator, dna: []const u8) ![]u8 {
@@ -385,6 +398,80 @@ pub fn translateDNA(allocator: Allocator, dna: []const u8) ![]u8 {
     }
 
     return prot;
+}
+
+/// Print one line with codons separated by spaces and
+/// the corresponding amino acids right below them.
+pub fn printCodons(dna: []const u8) void {
+    std.debug.print("\n", .{});
+    var i: usize = 0;
+    while (i + 3 <= dna.len) : (i += 3) {
+        std.debug.print("{s} ", .{dna[i..i+3]});
+    }
+    std.debug.print("\n", .{});
+    i = 0;
+    while (i + 3 <= dna.len) : (i += 3) {
+        std.debug.print(" {c}  ", .{dnaCodonMap.get(dna[i..i+3]).?});
+    }
+    std.debug.print("\n", .{});
+}
+
+/// Find all possible open read frames (max 6) in a DNA sequence.
+/// Return them as a StringSet.
+/// Caller must call set.deinit() when done with it.
+pub fn findORFs(allocator: Allocator, dna: []const u8) !StringSet {
+    var set = StringSet.init(allocator);
+
+    try findORF(allocator, dna[0..], &set);
+    try findORF(allocator, dna[1..], &set);
+    try findORF(allocator, dna[2..], &set);
+
+    const rev = try revComplement(allocator, dna);
+    defer allocator.free(rev);
+
+    try findORF(allocator, rev[0..], &set);
+    try findORF(allocator, rev[1..], &set);
+    try findORF(allocator, rev[2..], &set);
+
+    return set;
+}
+
+pub fn findORF(allocator: Allocator, dna: []const u8, set: *StringSet) !void {
+    var buffer: [1024]u8 = undefined;
+    var i: usize = 0;
+
+    // printCodons(dna);
+    // std.debug.print("\ndna={s}\n", .{dna});
+    // Find start codon
+    while (i + 3 <= dna.len) : (i += 3) {
+        if (dnaCodonMap.get(dna[i..i+3]) == 'M') {
+            // Recurse to see if there are other inner orfs
+            try findORF(allocator, dna[i+3..], set);
+            break;
+        }
+    } else {
+        // std.debug.print("Didn't find the start codon\n", .{});
+        return;
+    }
+
+    i += 3;             // Skip the start codon
+    buffer[0] = 'M';    // Add it to the output
+    var j: usize = 1;   // Conitnue adding at 1
+
+    // Translate until a stop codon or the end of the dna string
+    while (i + 3 <= dna.len) : (i += 3) {
+        const aac = dnaCodonMap.get(dna[i..i+3]).?;
+        if (aac == '.') {   // Found stop
+            break;          // Don't add it to the output
+        }
+        buffer[j] = aac;
+        j += 1;
+    } else {
+        // std.debug.print("Didn't find the stop codon\n", .{});
+        return;
+    }
+
+    try set.insert(buffer[0..j]);
 }
 
 /// Given a DNA sequence, remove all the introns in it and then translate it

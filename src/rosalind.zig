@@ -12,6 +12,7 @@ const Io = std.Io;
 const File = Io.File;
 const Reader = Io.Reader;
 const Writer = Io.Writer;
+const StringSet = bio.StringSet;
 
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
@@ -47,7 +48,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemMRNA();
     // try problemFIBD();
     // try problemPRTM();
-    try problemSPLC();
+    // try problemSPLC();
+    try problemORF();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -224,6 +226,14 @@ fn problemSPLC() !void {
     defer bio.freeLines(gpa, seqs);
 
     try solveSPLC(seqs[0], seqs[1..]);
+}
+
+fn problemORF() !void {
+    const fname = "datasets/rosalind_orf.txt";
+    const seqs = try bio.readFastaNoIdFile(io, gpa, fname);
+    defer bio.freeLines(gpa, seqs);
+
+    try solveORF(seqs[0]);
 }
 
 // ---------------------------------------------------------
@@ -533,4 +543,15 @@ fn solveSPLC(dna: []const u8, introns: [][]u8) !void {
     defer gpa.free(prot);
 
     print("{s}\n", .{prot});
+}
+
+/// ORF - Open Reading Frames
+fn solveORF(dna: []const u8) !void {
+    var set = try bio.findORFs(gpa, dna);
+    defer set.deinit();
+
+    var it = set.iterator();
+    while (it.next()) |key_ptr| {
+        print("{s}\n", .{key_ptr.*});
+    }
 }
