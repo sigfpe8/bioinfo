@@ -16,7 +16,6 @@ const StringSet = bio.StringSet;
 
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
-// const print = std.debug.print;
 
 var gpa: Allocator = undefined;
 var io: std.Io = undefined;
@@ -446,15 +445,14 @@ fn solveMPRT(list: [][] u8) !void {
     for (list) |prot_name| {
         const fasta = try bio.getProtein(io, gpa, prot_name);
         const seq = fasta[0].seq;
-        // std.debug.print("Tesing {s}\n", .{prot_name});
         const locs  = try motif.locations(seq);
 
         if (locs.len > 0) {
-            std.debug.print("{s}\n", .{prot_name});
+            print("{s}\n", .{prot_name});
             for (locs) |loc| {
-                std.debug.print("{d} ", .{loc});
+                print("{d} ", .{loc});
             }
-            std.debug.print("\n", .{});
+            print("\n", .{});
         }
         // Free resources for this protein
         gpa.free(locs);
