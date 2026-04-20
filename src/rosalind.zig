@@ -48,7 +48,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemFIBD();
     // try problemPRTM();
     // try problemSPLC();
-    try problemORF();
+    // try problemORF();
+    try problemLEXF();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -233,6 +234,31 @@ fn problemORF() !void {
     defer bio.freeLines(gpa, seqs);
 
     try solveORF(seqs[0]);
+}
+
+fn problemLEXF() !void {
+    const fname = "datasets/rosalind_lexf.txt";
+    const lines = try bio.readLines(io, gpa, fname);
+    defer bio.freeLines(gpa, lines);
+
+    // Assume there's a space between the symbols, eg: "A B C D"
+    const len = (lines[0].len + 1) / 2;
+
+    var alphabet = try gpa.alloc(u8, len);
+    defer gpa.free(alphabet);
+
+    // Create alphabet without the spaces
+    var i: usize = 0;
+    for (lines[0]) |c| {
+        if (c != ' ') {
+            alphabet[i] = c;
+            i += 1;
+        }
+    }
+
+    const n: usize = try std.fmt.parseInt(usize, lines[1], 10);
+
+    try solveLEXF(alphabet, n);
 }
 
 // ---------------------------------------------------------
@@ -551,5 +577,46 @@ fn solveORF(dna: []const u8) !void {
     var it = set.iterator();
     while (it.next()) |key_ptr| {
         print("{s}\n", .{key_ptr.*});
+    }
+}
+
+/// LEXF - Enumerating k-mers Lexicographically
+fn solveLEXF(alphabet: []const u8, n: usize) !void {
+    const string = try gpa.alloc(u8, n);
+    defer gpa.free(string);
+
+    var sym: u8 = 0;    // Symbol index from alphabet [0..alphabet.len]
+    var ind: usize = 0; // Index in string [0..n]
+
+    next_string: while (true) {
+        // Fill following positions with first symbol (0)
+        while (ind < n) : (ind += 1) {
+            string[ind] = 0;
+        }
+
+        // Print the string
+        for (string) |i| {
+            print("{c}", .{alphabet[i]});
+        }
+        print("\n", .{});
+
+        // Bump last symbol, backtracking as necessary
+        while (true) {
+            // Next symbol
+            ind -= 1;
+            sym = string[ind] + 1;
+            if (sym == alphabet.len) {
+                // Already highest symbol, must backtrack
+                if (ind == 0) {
+                    // Reached first column, cannot backtrack
+                    break :next_string;
+                }
+            } else {
+                break;
+            }
+        }
+
+        string[ind] = sym;
+        ind += 1;
     }
 }
