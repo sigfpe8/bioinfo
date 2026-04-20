@@ -49,7 +49,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemPRTM();
     // try problemSPLC();
     // try problemORF();
-    try problemLEXF();
+    // try problemLEXF();
+    try problemLCSM();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -260,6 +261,15 @@ fn problemLEXF() !void {
 
     try solveLEXF(alphabet, n);
 }
+
+fn problemLCSM() !void {
+    const fname = "datasets/rosalind_lcsm.txt";
+    const seqs = try bio.readFastaNoIdFile(io, gpa, fname);
+    defer bio.freeLines(gpa, seqs);
+
+    try solveLCSM(seqs);
+}
+
 
 // ---------------------------------------------------------
 
@@ -588,7 +598,8 @@ fn solveLEXF(alphabet: []const u8, n: usize) !void {
     var sym: u8 = 0;    // Symbol index from alphabet [0..alphabet.len]
     var ind: usize = 0; // Index in string [0..n]
 
-    next_string: while (true) {
+    next_string:
+    while (true) {
         // Fill following positions with first symbol (0)
         while (ind < n) : (ind += 1) {
             string[ind] = 0;
@@ -601,6 +612,7 @@ fn solveLEXF(alphabet: []const u8, n: usize) !void {
         print("\n", .{});
 
         // Bump last symbol, backtracking as necessary
+        // Enter with ind = n
         while (true) {
             // Next symbol
             ind -= 1;
@@ -618,5 +630,50 @@ fn solveLEXF(alphabet: []const u8, n: usize) !void {
 
         string[ind] = sym;
         ind += 1;
+    }
+}
+
+/// Return true if all the strings contain the substring
+fn allContain(strs: [][]u8, subs: []const u8) bool {
+    for (strs) |s| {
+        if (std.mem.find(u8, s, subs) == null) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/// LCSM - Finding a Shared Motif
+fn solveLCSM(seqs: [][]u8) !void {
+    // Find the shortest sequence
+    // The longest common substring cannot be longer than it
+    var len = seqs[0].len;
+    var ind: usize = 0;
+
+    for (seqs[1..], 1..) |s, i| {
+        if (s.len < len) {
+            len = s.len;
+            ind = i;
+        }
+    }
+
+    const needle = seqs[ind];
+
+    // print("len={d}, ind={d}, needle={s}\n", .{len,ind,needle});
+
+    while (len > 0) : (len -= 1) {
+        var base: usize = 0;
+        while (base + len <= needle.len) : (base += 1) {
+            if (allContain(seqs, needle[base..base+len])) {
+                // Found one of the longest common substrings
+                print("{s}\n", .{needle[base..base+len]});
+                return;
+            }
+        }
+
+    } else {
+        print("The strings have no common substring!\n", .{});
+        return;
     }
 }
