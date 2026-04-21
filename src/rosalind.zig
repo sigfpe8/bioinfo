@@ -50,7 +50,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemSPLC();
     // try problemORF();
     // try problemLEXF();
-    try problemLCSM();
+    // try problemLCSM();
+    try problemIEV();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -270,6 +271,14 @@ fn problemLCSM() !void {
     try solveLCSM(seqs);
 }
 
+fn problemIEV() !void {
+    const fname = "datasets/rosalind_iev.txt";
+    var ints = bio.IntsReader(i32).init(gpa);
+    defer ints.deinit();
+    try ints.readFile(io, fname);
+
+    try solveIEV(ints.items);
+}
 
 // ---------------------------------------------------------
 
@@ -676,4 +685,21 @@ fn solveLCSM(seqs: [][]u8) !void {
         print("The strings have no common substring!\n", .{});
         return;
     }
+}
+
+/// IEV - Calculating Expected Offspring
+fn solveIEV(ints: []i32) !void {
+    assert(ints.len == 6);
+
+    const prob = [_]f64{1.0, 1.0, 1.0, 0.75, 0.5, 0};
+
+    var exp: f64 = 0.0;
+
+    for (ints, 0..) |v, i| {
+        const fv: f64 = @floatFromInt(v);
+        // print("{d} - {d}\n", .{fv, prob[i]});
+        exp += 2.0 * fv * prob[i];
+    }
+
+    print("{d}\n", .{exp});
 }
