@@ -51,7 +51,8 @@ pub fn main(init: std.process.Init) !void {
     // try problemORF();
     // try problemLEXF();
     // try problemLCSM();
-    try problemIEV();
+    // try problemIEV();
+    try problemLIA();
 }
 
 /// Simple print() to stdout ignoring errors
@@ -280,6 +281,14 @@ fn problemIEV() !void {
     try solveIEV(ints.items);
 }
 
+fn problemLIA() !void {
+    const fname = "datasets/rosalind_lia.txt";
+    var ints = bio.IntsReader(usize).init(gpa);
+    defer ints.deinit();
+    try ints.readFile(io, fname);
+
+    solveLIA(ints.items[0], ints.items[1]);
+}
 // ---------------------------------------------------------
 
 /// DNA - Counting DNA Nucleotides
@@ -702,4 +711,22 @@ fn solveIEV(ints: []i32) !void {
     }
 
     print("{d}\n", .{exp});
+}
+
+/// LIA - Independent Alleles
+fn solveLIA(k: usize, n: usize) void {
+    var prob: f64 = 0.0;
+
+    // Number of offsprings after k generations (2**k)
+    const offs: usize = std.math.pow(usize, 2, k);
+
+    var i: usize = n;
+    while (i <= offs) : (i += 1) {
+        const t1: f64 = @floatFromInt(bio.nChooseK(offs, i));
+        const t2: f64 = std.math.pow(f64, 0.25, @as(f64, @floatFromInt(i)));
+        const t3: f64 = std.math.pow(f64, 0.75, @as(f64, @floatFromInt(offs - i)));
+        prob += t1 * t2 * t3;
+    }
+
+    print("{d:.3}\n", .{prob});
 }

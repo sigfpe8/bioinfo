@@ -40,6 +40,36 @@ pub fn binomial(n: usize, k: usize) usize {
     return num / den;
 }
 
+/// Same as binomial() but uses floating point internally to
+/// allow for larger numbers and avoid integer overflow.
+pub fn nChooseK(n: usize, k: usize) usize {
+    // (n * (n - 1) * ... * (n - k + 1)) / (k * (k - 1) * ... * 1)
+    if (n == k or k == 0) {
+        return 1;
+    }
+
+    assert(n > k);
+
+    var t: usize = n - 1;
+    var num: f64 = @floatFromInt(n);
+
+    // Numerator = n * (n - 1) * ... * (n - k + 1)
+    // k factors, (k-1) multiplications
+    while (t > (n - k)) : (t -= 1) {
+        num *= @as(f64,@floatFromInt(t));
+    }
+
+    // Denominator =  k * (k - 1) * ... * 1
+    // k factors, (k-1) multiplications
+    var den: f64 = @floatFromInt(k);
+    t = k - 1;
+    while (t > 1) : (t -= 1) {
+        den *= @as(f64,@floatFromInt(t));
+    }
+
+    return @as(usize,@intFromFloat(num / den));
+}
+
 /// Print Pascal's Triangle of order n
 pub fn pascalsTriang(n: usize) void {
     for (0..n+1) |i| {

@@ -23,6 +23,7 @@ pub const IntsReader = fas.IntsReader;
 
 const utl = @import("utils.zig");
 pub const binomial = utl.binomial;
+pub const nChooseK = utl.nChooseK;
 pub const pascalsTriang = utl.pascalsTriang;
 pub const PermIterator = utl.PermIterator;
 
